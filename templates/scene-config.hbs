@@ -1,0 +1,36 @@
+<fieldset class="dimancer-board-config">
+  <legend><i class="fa-solid fa-thumbtack" inert></i> {{localize "DIMANCER_BOARD.Config.Legend"}}</legend>
+  <div class="form-group">
+    <label for="{{rootId}}-dimancer-board-surface">{{localize "DIMANCER_BOARD.Surface.Label"}}</label>
+    <div class="form-fields">
+      <select id="{{rootId}}-dimancer-board-surface" name="flags.dimancer_board.board.surface.id">
+        <option value="">{{localize "DIMANCER_BOARD.Surface.None"}}</option>
+        {{#each surfaces}}
+        <option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+        {{/each}}
+      </select>
+    </div>
+    <p class="hint">{{localize "DIMANCER_BOARD.Surface.ConfigHint"}}</p>
+  </div>
+  <div class="form-group dimancer-board-plain-config">
+    <label for="{{rootId}}-dimancer-board-color">{{localize "DIMANCER_BOARD.Surface.BoardColor"}}</label>
+    <div class="form-fields">
+      <color-picker id="{{rootId}}-dimancer-board-color" name="flags.dimancer_board.board.surface.color" value="{{plainColor}}"></color-picker>
+    </div>
+  </div>
+  <div class="form-group dimancer-board-frame-config">
+    <label for="{{rootId}}-dimancer-board-frame">{{localize "DIMANCER_BOARD.Surface.Frame"}}</label>
+    <div class="form-fields">
+      <color-picker id="{{rootId}}-dimancer-board-frame" name="flags.dimancer_board.board.surface.frame" value="{{frame}}" placeholder="{{defaultFrame}}"></color-picker>
+    </div>
+    <p class="hint">{{localize "DIMANCER_BOARD.Surface.FrameHint"}}</p>
+  </div>
+  <div class="form-group">
+    <label for="{{rootId}}-dimancer-board-locked">{{localize "DIMANCER_BOARD.Config.Locked"}}</label>
+    <div class="form-fields">
+      <input type="checkbox" id="{{rootId}}-dimancer-board-locked" name="flags.dimancer_board.board.locked" {{checked locked}}>
+    </div>
+    <p class="hint">{{localize "DIMANCER_BOARD.Config.LockedHint"}}</p>
+  </div>
+  <p class="hint">{{localize "DIMANCER_BOARD.Config.AccessHint"}}</p>
+</fieldset>

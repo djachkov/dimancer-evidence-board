@@ -1,0 +1,245 @@
+<div class="mb-journal">
+  <section class="mb-list mb-journal-list">
+    <header class="mb-list-head">
+      <button type="button" class="mb-journal-openboard" data-action="openBoard"{{#unless boards.length}} disabled{{/unless}}
+              data-tooltip="{{#if boards.length}}DIMANCER_BOARD.Journal.OpenBoardHint{{else}}DIMANCER_BOARD.Journal.NoBoards{{/if}}">
+        <i class="fa-solid fa-chalkboard" inert></i>
+        <span>{{#if (eq boards.length 1)}}{{localize "DIMANCER_BOARD.Journal.OpenThisBoard" name=boards.0.name}}{{else}}{{localize "DIMANCER_BOARD.Journal.OpenBoard"}}{{/if}}</span>
+        {{#if (gt boards.length 1)}}<i class="fa-solid fa-caret-down mb-caret" inert></i>{{/if}}
+      </button>
+      <nav class="mb-list-modes" aria-label="{{localize "DIMANCER_BOARD.List.View"}}">
+        {{#each modes}}
+        <button type="button" data-action="mode" data-mode="{{id}}" aria-pressed="{{active}}"{{#if active}} class="active"{{/if}}>{{label}}</button>
+        {{/each}}
+      </nav>
+      <div class="mb-list-tools">
+        <div class="mb-list-search">
+          <i class="fa-solid fa-magnifying-glass" inert></i>
+          <input type="search" name="search" value="{{query}}" placeholder="{{localize "DIMANCER_BOARD.List.Search"}}"
+                 aria-label="{{localize "DIMANCER_BOARD.List.Search"}}" autocomplete="off">
+          <button type="button" class="icon fa-solid fa-xmark" data-action="clearSearch" hidden
+                  aria-label="{{localize "DIMANCER_BOARD.List.Clear"}}"></button>
+        </div>
+        {{#if editable}}
+        {{#if isFolders}}
+        <button type="button" class="icon fa-solid fa-folder-plus" data-action="newFolder"
+                data-tooltip="DIMANCER_BOARD.Folder.Create" aria-label="{{localize "DIMANCER_BOARD.Folder.Create"}}"></button>
+        {{/if}}
+        {{#if isCategories}}
+        <button type="button" class="icon fa-solid fa-gear" data-action="manageCategories"
+                data-tooltip="DIMANCER_BOARD.Category.Manage" aria-label="{{localize "DIMANCER_BOARD.Category.Manage"}}"></button>
+        {{/if}}
+        <button type="button" class="icon fa-solid fa-image" data-action="addEvidence"
+                data-tooltip="DIMANCER_BOARD.Journal.Add" aria-label="{{localize "DIMANCER_BOARD.Journal.Add"}}"></button>
+        <button type="button" class="icon fa-solid fa-file-lines" data-action="addDocument"
+                data-tooltip="DIMANCER_BOARD.Journal.AddDocument" aria-label="{{localize "DIMANCER_BOARD.Journal.AddDocument"}}"></button>
+        <button type="button" class="icon fa-solid fa-file-pdf" data-action="addPdf"
+                data-tooltip="DIMANCER_BOARD.Journal.AddPdf" aria-label="{{localize "DIMANCER_BOARD.Journal.AddPdf"}}"></button>
+        {{/if}}
+      </div>
+      <div class="mb-list-tools mb-journal-filters">
+        <select name="sort" aria-label="{{localize "DIMANCER_BOARD.List.SortLabel"}}" data-tooltip="DIMANCER_BOARD.List.SortLabel">
+          {{#each sorts}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+        <select name="placement" aria-label="{{localize "DIMANCER_BOARD.Journal.PlacementLabel"}}" data-tooltip="DIMANCER_BOARD.Journal.PlacementLabel">
+          {{#each placements}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+    </header>
+
+    <ol class="mb-list-rows">
+      {{#each rows}}
+      {{#if isGroup}}
+      <li class="mb-list-group" data-group-key="{{id}}" data-group-id="{{groupId}}" data-kind="{{kind}}"
+          data-ancestors="{{#each ancestors}}{{this}} {{/each}}" style="--depth: {{depth}}; --group-color: {{#if color}}{{color}}{{else}}transparent{{/if}}"
+          {{#if draggable}}draggable="true"{{/if}} data-action="toggle"{{#if collapsedAbove}} hidden{{/if}}>
+        <i class="mb-group-caret fa-solid fa-chevron-down fa-fw" inert></i>
+        {{#if (eq kind "folder")}}
+        <i class="mb-group-icon is-folder fa-solid {{icon}} fa-fw" inert></i>
+        {{else}}
+        <i class="mb-group-icon fa-solid {{icon}} fa-fw" inert></i>
+        {{/if}}
+        <span class="mb-group-name">{{name}}</span>
+        <span class="mb-group-count">{{count}}</span>
+        {{#if menu}}
+        <button type="button" class="mb-group-menu icon fa-solid fa-ellipsis" data-action="groupMenu"
+                aria-label="{{localize "DIMANCER_BOARD.Folder.Menu"}}"></button>
+        {{/if}}
+      </li>
+      {{else}}
+      <li class="mb-list-row{{#if hidden}} is-hidden{{/if}}{{#if current}} current{{/if}}" data-card-id="{{id}}" data-search="{{search}}"
+          data-ancestors="{{#each ancestors}}{{this}} {{/each}}" style="--depth: {{depth}}"
+          draggable="true" data-action="select" data-tooltip="DIMANCER_BOARD.Journal.RowHint"{{#if collapsedAbove}} hidden{{/if}}>
+        {{#if isDocument}}
+        <span class="mb-list-thumb mb-list-sticker is-document"><i class="fa-solid fa-file-lines" inert></i></span>
+        {{else if isPdf}}
+        <span class="mb-list-thumb mb-list-sticker is-document"><i class="fa-solid fa-file-pdf" inert></i></span>
+        {{else if src}}
+        <img class="mb-list-thumb" src="{{src}}" alt="" width="20" height="20" loading="lazy" draggable="false">
+        {{else}}
+        <span class="mb-list-thumb mb-list-sticker"><i class="fa-solid fa-magnifying-glass" inert></i></span>
+        {{/if}}
+        <span class="mb-list-title{{#if untitled}} untitled{{/if}}">{{title}}</span>
+        <span class="mb-list-marks">
+          {{#if catColor}}<span class="mb-cat-dot" style="--swatch: {{catColor}}" data-tooltip="{{catName}}"></span>{{/if}}
+          {{#if placed}}<span class="mb-journal-placed" data-tooltip="DIMANCER_BOARD.Journal.OnBoardsHint"><i class="fa-solid fa-thumbtack" inert></i>{{#if (gt placed 1)}}{{placed}}{{/if}}</span>{{/if}}
+          {{#if hidden}}<i class="fa-solid fa-eye-slash" data-tooltip="DIMANCER_BOARD.Journal.HiddenHint"></i>{{/if}}
+        </span>
+      </li>
+      {{/if}}
+      {{else}}
+      <li class="mb-list-empty">{{localize "DIMANCER_BOARD.Journal.Empty"}}</li>
+      {{/each}}
+    </ol>
+    <p class="mb-list-empty mb-list-nomatch" hidden>{{localize "DIMANCER_BOARD.List.NoMatch"}}</p>
+    <footer class="mb-list-footer">{{localize "DIMANCER_BOARD.List.Count" count=count}}</footer>
+  </section>
+
+  <section class="mb-journal-detail">
+    {{#if selected}}
+    {{#with selected}}
+    {{#if isPdf}}
+    <section class="mb-stage mb-journal-image is-pdf{{#if pdfBroken}} broken{{/if}}" data-stage{{#if @root.stageHeight}} style="height: {{@root.stageHeight}}px"{{/if}}>
+      {{#if pdfPreview}}<img src="{{pdfPreview}}" alt="{{title}}" draggable="false">{{/if}}
+      <p class="mb-broken">{{localize "DIMANCER_BOARD.Document.PdfBroken"}}</p>
+      <div class="mb-zoom">
+        {{#if pdfPages}}<span class="mb-zoom-label mb-pdf-pages" data-tooltip="DIMANCER_BOARD.Document.PdfFirstPage">{{localize "DIMANCER_BOARD.Document.PdfPages" count=pdfPages}}</span>{{/if}}
+        <button type="button" data-action="zoomOut" data-tooltip="DIMANCER_BOARD.Viewer.ZoomOut"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.ZoomOut"}}"><i class="fa-solid fa-minus" inert></i></button>
+        <span class="mb-zoom-label" data-zoom-label>100%</span>
+        <button type="button" data-action="zoomIn" data-tooltip="DIMANCER_BOARD.Viewer.ZoomIn"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.ZoomIn"}}"><i class="fa-solid fa-plus" inert></i></button>
+        <button type="button" data-action="fit" data-tooltip="DIMANCER_BOARD.Viewer.Fit"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.Fit"}}"><i class="fa-solid fa-expand" inert></i></button>
+        <button type="button" data-action="openImage" data-tooltip="DIMANCER_BOARD.Journal.ReadPdf"
+                aria-label="{{localize "DIMANCER_BOARD.Journal.ReadPdf"}}"><i class="fa-solid fa-book-open-reader" inert></i></button>
+      </div>
+    </section>
+    <button type="button" class="mb-journal-read" data-action="openImage">
+      <i class="fa-solid fa-book-open-reader" inert></i>
+      {{#if pdfPages}}{{localize "DIMANCER_BOARD.Document.ReadPdfPages" count=pdfPages}}{{else}}{{localize "DIMANCER_BOARD.Journal.ReadPdf"}}{{/if}}
+    </button>
+    {{else if isDocument}}
+    <section class="mb-doc">
+      <nav class="mb-doc-bar">
+        <button type="button" data-action="prevDocPage" data-tooltip="DIMANCER_BOARD.Document.Prev"
+                aria-label="{{localize "DIMANCER_BOARD.Document.Prev"}}"{{#if isFirstDocPage}} disabled{{/if}}><i class="fa-solid fa-chevron-left" inert></i></button>
+        <span class="mb-doc-count">{{localize "DIMANCER_BOARD.Document.PageOf" n=docPage total=docPageCount}}</span>
+        <button type="button" data-action="nextDocPage" data-tooltip="DIMANCER_BOARD.Document.Next"
+                aria-label="{{localize "DIMANCER_BOARD.Document.Next"}}"{{#if isLastDocPage}} disabled{{/if}}><i class="fa-solid fa-chevron-right" inert></i></button>
+        {{#if editable}}
+        <span class="mb-doc-spacer"></span>
+        <button type="button" data-action="addDocPage" data-tooltip="DIMANCER_BOARD.Document.AddPage"
+                aria-label="{{localize "DIMANCER_BOARD.Document.AddPage"}}"><i class="fa-solid fa-file-circle-plus" inert></i></button>
+        {{#if (gt docPageCount 1)}}
+        <button type="button" data-action="removeDocPage" data-tooltip="DIMANCER_BOARD.Document.RemovePage"
+                aria-label="{{localize "DIMANCER_BOARD.Document.RemovePage"}}"><i class="fa-solid fa-file-circle-minus" inert></i></button>
+        {{/if}}
+        {{/if}}
+      </nav>
+      <article class="mb-doc-paper" data-doc-paper{{#if @root.stageHeight}} style="height: {{@root.stageHeight}}px"{{/if}}>
+        {{#if editable}}
+        <prose-mirror name="docPage" toggled value="{{docPageRaw}}">{{#if docPageEmpty}}<p class="mb-empty">{{localize "DIMANCER_BOARD.Document.Write"}}</p>{{else}}{{{docPageHTML}}}{{/if}}</prose-mirror>
+        {{else if docPageEmpty}}
+        <p class="mb-empty">{{localize "DIMANCER_BOARD.Document.Blank"}}</p>
+        {{else}}
+        {{{docPageHTML}}}
+        {{/if}}
+      </article>
+    </section>
+    {{else if src}}
+    <section class="mb-stage mb-journal-image" data-stage{{#if @root.stageHeight}} style="height: {{@root.stageHeight}}px"{{/if}}>
+      <img src="{{src}}" alt="{{title}}" draggable="false">
+      <p class="mb-broken">{{localize "DIMANCER_BOARD.Viewer.Broken"}}</p>
+      <div class="mb-zoom">
+        <button type="button" data-action="zoomOut" data-tooltip="DIMANCER_BOARD.Viewer.ZoomOut"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.ZoomOut"}}"><i class="fa-solid fa-minus" inert></i></button>
+        <span class="mb-zoom-label" data-zoom-label>100%</span>
+        <button type="button" data-action="zoomIn" data-tooltip="DIMANCER_BOARD.Viewer.ZoomIn"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.ZoomIn"}}"><i class="fa-solid fa-plus" inert></i></button>
+        <button type="button" data-action="fit" data-tooltip="DIMANCER_BOARD.Viewer.Fit"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.Fit"}}"><i class="fa-solid fa-expand" inert></i></button>
+        <button type="button" data-action="actual" data-tooltip="DIMANCER_BOARD.Viewer.Actual"
+                aria-label="{{localize "DIMANCER_BOARD.Viewer.Actual"}}">1:1</button>
+        <button type="button" data-action="openImage" data-tooltip="DIMANCER_BOARD.Journal.PopOut"
+                aria-label="{{localize "DIMANCER_BOARD.Journal.PopOut"}}"><i class="fa-solid fa-up-right-from-square" inert></i></button>
+      </div>
+    </section>
+    {{else}}
+    <figure class="mb-journal-image empty"><i class="fa-solid fa-image" inert></i></figure>
+    {{/if}}
+    {{#if editable}}
+    <input type="text" class="mb-journal-title" name="title" value="{{title}}" aria-label="{{localize "DIMANCER_BOARD.Card.Title"}}">
+    {{else}}
+    <h2 class="mb-journal-title">{{title}}</h2>
+    {{/if}}
+
+    <div class="mb-journal-meta">
+      {{#if editable}}
+      <select name="category" aria-label="{{localize "DIMANCER_BOARD.Category.Set"}}">
+        <option value="">{{localize "DIMANCER_BOARD.Category.None"}}</option>
+        {{#each categories}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}
+      </select>
+      {{else if category}}
+      <span class="mb-chip" style="--swatch: {{category.color}}"><i class="fa-solid {{category.icon}}" inert></i> {{category.name}}</span>
+      {{/if}}
+      {{#if @root.gm}}
+      <button type="button" class="mb-journal-access{{#if hidden}} is-hidden{{/if}}" data-action="toggleHidden" aria-pressed="{{hidden}}">
+        <i class="fa-solid {{#if hidden}}fa-eye-slash{{else}}fa-eye{{/if}}" inert></i>
+        {{#if hidden}}{{localize "DIMANCER_BOARD.Journal.HiddenState"}}{{else}}{{localize "DIMANCER_BOARD.Journal.RevealedState"}}{{/if}}
+      </button>
+      {{/if}}
+    </div>
+    {{#if @root.gm}}
+    <div class="mb-journal-gm">
+      <button type="button" data-action="showPlayers" data-tooltip="DIMANCER_BOARD.Journal.ShowPlayersHint">
+        <i class="fa-solid fa-users-viewfinder" inert></i> {{localize "DIMANCER_BOARD.Journal.ShowPlayers"}}</button>
+      <button type="button" data-action="jumpEveryone"{{#if gmJump}} data-scene-id="{{gmJump.sceneId}}" data-card-id="{{gmJump.cardId}}"
+              data-tooltip="{{localize "DIMANCER_BOARD.Journal.JumpEveryone" name=gmJump.sceneName}}"{{else}} disabled data-tooltip="DIMANCER_BOARD.Journal.NotPlaced"{{/if}}>
+        <i class="fa-solid fa-people-arrows" inert></i> {{localize "DIMANCER_BOARD.Journal.JumpEveryoneShort"}}</button>
+    </div>
+    {{/if}}
+    {{#if @root.filteredOut}}<p class="hint">{{localize "DIMANCER_BOARD.Journal.FilteredOut"}}</p>{{/if}}
+
+    <div class="mb-journal-boards">
+      <h3>{{localize "DIMANCER_BOARD.Journal.OnBoards"}}</h3>
+      {{#if placements.length}}
+      <ul>
+        {{#each placements}}
+        <li><button type="button" data-action="jump" data-scene-id="{{sceneId}}" data-card-id="{{cardId}}"{{#if current}} class="current"{{/if}}>
+          <i class="fa-solid fa-location-crosshairs" inert></i> {{sceneName}}</button>
+          {{#if @root.gm}}<button type="button" class="mb-journal-jumpall" data-action="jumpEveryone" data-scene-id="{{sceneId}}" data-card-id="{{cardId}}"
+            data-tooltip="{{localize "DIMANCER_BOARD.Journal.JumpEveryone" name=sceneName}}" aria-label="{{localize "DIMANCER_BOARD.Journal.JumpEveryone" name=sceneName}}">
+            <i class="fa-solid fa-people-arrows" inert></i></button>{{/if}}</li>
+        {{/each}}
+      </ul>
+      {{else}}
+      <p class="mb-journal-none">{{localize "DIMANCER_BOARD.Journal.NotPlaced"}}</p>
+      {{/if}}
+      {{#if canPlace}}
+      <button type="button" class="mb-journal-place" data-action="place">
+        <i class="fa-solid fa-thumbtack" inert></i> {{localize "DIMANCER_BOARD.Journal.PlaceOn" name=boardName}}</button>
+      {{/if}}
+    </div>
+
+    <div class="mb-journal-notes">
+      <h3>{{localize "DIMANCER_BOARD.Viewer.Notes"}}</h3>
+      {{#if editable}}
+      <prose-mirror name="notes" toggled value="{{notes}}">{{#if hasNotes}}{{{notesHTML}}}{{else}}<p class="mb-empty">{{localize "DIMANCER_BOARD.Viewer.AddNotes"}}</p>{{/if}}</prose-mirror>
+      {{else}}
+      <div class="mb-notes">{{#if hasNotes}}{{{notesHTML}}}{{else}}<p class="mb-empty">{{localize "DIMANCER_BOARD.Journal.NoNotes"}}</p>{{/if}}</div>
+      {{/if}}
+    </div>
+
+    <footer class="mb-journal-foot">
+      {{#if link}}<button type="button" class="mb-journal-link" data-action="openLink" data-uuid="{{link.uuid}}"><i class="fa-solid fa-link" inert></i> {{link.name}}</button>{{/if}}
+      {{#if author}}<span class="mb-journal-author">{{localize "DIMANCER_BOARD.Journal.AddedBy" name=author}}</span>{{/if}}
+      {{#if editable}}<button type="button" class="mb-journal-delete" data-action="deleteEvidence" data-tooltip="DIMANCER_BOARD.Journal.Delete"
+        aria-label="{{localize "DIMANCER_BOARD.Journal.Delete"}}"><i class="fa-solid fa-trash" inert></i></button>{{/if}}
+    </footer>
+    {{/with}}
+    {{else}}
+    <p class="mb-journal-empty">{{localize "DIMANCER_BOARD.Journal.SelectHint"}}</p>
+    {{/if}}
+  </section>
+</div>

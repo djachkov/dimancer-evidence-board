@@ -1,0 +1,8 @@
+# Release build output (made by .github/workflows/release.yml)
+module.zip
+
+# Scratch files from local testing
+tmp-*
+*.log
+node_modules/
+.DS_Store

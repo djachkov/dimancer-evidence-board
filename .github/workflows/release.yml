@@ -1,0 +1,75 @@
+# Builds a Foundry release when a version tag (e.g. v0.2.0) is pushed, or when run
+# manually from the Actions tab for an existing tag.
+#
+# The release gets two assets, which is what module.json's URLs point at:
+#   module.json  - served by releases/latest/download/module.json (the install/update URL)
+#   module.zip   - the package Foundry downloads and extracts
+#
+# The tag is the only place the version lives: "version" (tag minus the leading "v")
+# and "download" are written into the released module.json here. The values in the
+# repo's module.json are placeholders and never need bumping.
+#
+# The unit tests run first; a failing test stops the release.
+#
+# Re-running is safe: if the release already exists, its assets are replaced.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build the release for, e.g. v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Unit tests
+        run: node --test test/*.test.mjs
+
+      - name: Set version and download URL from the tag
+        run: |
+          version="${TAG#v}"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/module.zip"
+          jq --arg version "$version" --arg url "$url" \
+            '.version = $version | .download = $url' module.json > module.json.tmp
+          mv module.json.tmp module.json
+          echo "Releasing ${version}"
+
+      - name: Build module.zip
+        run: |
+          zip -r module.zip \
+            module.json README.md \
+            scripts styles templates lang assets
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" module.json module.zip --clobber
+          else
+            gh release create "${TAG}" module.json module.zip \
+              --verify-tag \
+              --title "${TAG}" \
+              --generate-notes
+          fi

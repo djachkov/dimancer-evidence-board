@@ -1,0 +1,42 @@
+<div class="dimancer-board-add-form">
+  <div class="form-group">
+    <label>{{#if pdf}}{{localize "DIMANCER_BOARD.Add.Pdf"}}{{else}}{{localize "DIMANCER_BOARD.Add.Image"}}{{/if}}</label>
+    <div class="form-fields">
+      <input type="text" name="src" placeholder="{{localize "DIMANCER_BOARD.Add.ImagePlaceholder"}}" autofocus>
+      {{#if canBrowse}}
+      <button type="button" class="icon fa-solid fa-file-import" data-browse
+              data-tooltip="DIMANCER_BOARD.Add.Browse" aria-label="{{localize "DIMANCER_BOARD.Add.Browse"}}"></button>
+      {{/if}}
+    </div>
+    <p class="hint">{{#if pdf}}{{localize "DIMANCER_BOARD.Add.PdfHint"}}{{else}}{{localize "DIMANCER_BOARD.Add.ImageHint"}}{{/if}}</p>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DIMANCER_BOARD.Add.Upload"}}</label>
+    <div class="form-fields">
+      <input type="file" name="file" accept="{{#if pdf}}application/pdf,.pdf{{else}}image/*,application/pdf,.pdf{{/if}}" {{#unless canUpload}}disabled{{/unless}}>
+    </div>
+    {{#unless canUpload}}<p class="hint">{{localize "DIMANCER_BOARD.Add.UploadDenied"}}</p>{{/unless}}
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "DIMANCER_BOARD.Card.Title"}}</label>
+    <div class="form-fields">
+      <input type="text" name="title" placeholder="{{localize "DIMANCER_BOARD.Add.TitlePlaceholder"}}">
+    </div>
+  </div>
+
+  {{#if categories.length}}
+  <div class="form-group">
+    <label>{{localize "DIMANCER_BOARD.Category.Label"}}</label>
+    <div class="form-fields">
+      <select name="category">
+        <option value="">{{localize "DIMANCER_BOARD.Category.None"}}</option>
+        {{#each categories}}<option value="{{id}}">{{name}}</option>{{/each}}
+      </select>
+    </div>
+  </div>
+  {{/if}}
+
+  <p class="hint">{{localize "DIMANCER_BOARD.Add.DropHint"}}</p>
+</div>

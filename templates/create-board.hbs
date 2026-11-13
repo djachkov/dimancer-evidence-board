@@ -1,0 +1,59 @@
+<div class="form-group">
+  <label>{{localize "DIMANCER_BOARD.Scene.Name"}}</label>
+  <input type="text" name="name" value="{{name}}" autofocus>
+</div>
+<div class="mb-create">
+  <fieldset class="mb-create-surfaces">
+    <legend>{{localize "DIMANCER_BOARD.Surface.Pick"}}</legend>
+    <div class="mb-surface-list" role="radiogroup">
+      {{#each surfaces}}
+      <label class="mb-surface-option">
+        <input type="radio" name="surface" value="{{id}}" {{checked checked}}
+               data-kind="{{kind}}" data-color="{{color}}" data-frame="{{frame}}" data-tile="{{tile}}" data-thumb="{{thumb}}">
+        <span class="mb-surface-thumb" style="background-color: {{color}};{{#if thumb}} background-image: url('{{thumb}}');{{/if}}"></span>
+        <span class="mb-surface-name">{{label}}</span>
+        <i class="mb-surface-check fa-solid fa-check" inert></i>
+      </label>
+      {{/each}}
+    </div>
+  </fieldset>
+  <div class="mb-create-side">
+    <div class="mb-create-preview" style="background-color: {{surround}}" aria-label="{{localize "DIMANCER_BOARD.Surface.Preview"}}">
+      <div class="mb-preview-board"></div>
+    </div>
+    <div class="form-group">
+      <label>{{localize "DIMANCER_BOARD.Size.Label"}}</label>
+      <div class="form-fields">
+        <select name="size">
+          {{#each sizes}}
+          <option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+    </div>
+    <div class="form-group mb-custom-size">
+      <label>{{localize "DIMANCER_BOARD.Size.Dimensions"}}</label>
+      <div class="form-fields">
+        <input type="number" name="width" value="{{width}}" min="{{limits.min}}" max="{{limits.max}}" step="100" aria-label="{{localize "DIMANCER_BOARD.Size.Width"}}">
+        <span class="mb-times">×</span>
+        <input type="number" name="height" value="{{height}}" min="{{limits.min}}" max="{{limits.max}}" step="100" aria-label="{{localize "DIMANCER_BOARD.Size.Height"}}">
+      </div>
+    </div>
+    <div class="form-group mb-plain-color">
+      <label>{{localize "DIMANCER_BOARD.Surface.BoardColor"}}</label>
+      <div class="form-fields"><color-picker name="color" value="{{color}}"></color-picker></div>
+    </div>
+    <div class="form-group">
+      <label>{{localize "DIMANCER_BOARD.Surface.Frame"}}</label>
+      <div class="form-fields">
+        <color-picker name="frame" value="{{frame}}"></color-picker>
+        <button type="button" class="icon fa-solid fa-rotate-left mb-frame-reset" data-tooltip="{{localize "DIMANCER_BOARD.Surface.FrameReset"}}" aria-label="{{localize "DIMANCER_BOARD.Surface.FrameReset"}}"></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>{{localize "DIMANCER_BOARD.Surface.Surround"}}</label>
+      <div class="form-fields"><color-picker name="surround" value="{{surround}}"></color-picker></div>
+    </div>
+  </div>
+</div>
+<p class="hint">{{localize "DIMANCER_BOARD.Scene.CreateHint"}} {{localize "DIMANCER_BOARD.Surface.CreateHint"}}</p>

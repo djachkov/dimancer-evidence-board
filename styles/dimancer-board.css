@@ -1,0 +1,1156 @@
+/* ---------------------------------------- */
+/*  Card context menu (over the canvas)     */
+/* ---------------------------------------- */
+
+.dimancer-board-menu {
+  position: fixed;
+  z-index: calc(var(--z-index-tooltip, 9999) - 1);
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  background: var(--color-cool-5, #1e1f26);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
+  color: var(--color-light-1, #f0f0e0);
+  font-family: var(--font-body, "Signika", sans-serif);
+  font-size: var(--font-size-14, 14px);
+}
+
+.dimancer-board-menu ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dimancer-board-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dimancer-board-menu button:hover,
+.dimancer-board-menu button:focus-visible {
+  background: rgb(255 255 255 / 10%);
+}
+
+.dimancer-board-menu button.danger {
+  color: var(--color-level-error, #ff6b5a);
+}
+
+.dimancer-board-swatches {
+  display: flex;
+  gap: 6px;
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  margin-bottom: 4px;
+}
+
+.dimancer-board-menu button.swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid rgb(255 255 255 / 25%);
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+.dimancer-board-menu button.swatch:hover,
+.dimancer-board-menu button.swatch.active {
+  border-color: #fff;
+  background: var(--swatch);
+}
+
+/* Connecting two cards: crosshair over the board */
+body.dimancer-board-connecting #board {
+  cursor: crosshair !important;
+}
+
+/* ---------------------------------------- */
+/*  Scenes sidebar                          */
+/* ---------------------------------------- */
+
+#scenes .header-actions .dimancer-board-create {
+  flex-basis: 100%;
+}
+
+/* ---------------------------------------- */
+/*  Create-board dialog                     */
+/* ---------------------------------------- */
+
+.dimancer-board-create-dialog .mb-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.dimancer-board-create-dialog .mb-create-surfaces {
+  margin: 0;
+  padding: 4px 6px 6px;
+  min-width: 0;
+}
+
+/* The options: one line each, thumbnail then name, in a scrolling list */
+.dimancer-board-create-dialog .mb-surface-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 290px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.dimancer-board-create-dialog .mb-surface-option {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.dimancer-board-create-dialog .mb-surface-option:hover {
+  background: var(--color-cool-5-50, #fff1);
+}
+
+.dimancer-board-create-dialog .mb-surface-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dimancer-board-create-dialog .mb-surface-thumb {
+  width: 56px;
+  height: 38px;
+  border-radius: 3px;
+  background-size: 120px;
+  background-position: center;
+  box-shadow: 0 0 0 1px #0006, inset 0 0 8px #0003;
+}
+
+.dimancer-board-create-dialog .mb-surface-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dimancer-board-create-dialog .mb-surface-check {
+  visibility: hidden;
+  color: var(--color-warm-2, #ff6400);
+}
+
+.dimancer-board-create-dialog .mb-surface-option:has(input:checked) {
+  border-color: var(--color-warm-2, #ff6400);
+  background: var(--color-warm-3-25, #ff640022);
+}
+
+.dimancer-board-create-dialog .mb-surface-option:has(input:checked) .mb-surface-check {
+  visibility: visible;
+}
+
+.dimancer-board-create-dialog .mb-surface-option:has(input:focus-visible) {
+  outline: 2px solid var(--color-cool-4, #4b8);
+}
+
+/* The preview: the framed board on its surrounding colour */
+.dimancer-board-create-dialog .mb-create-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dimancer-board-create-dialog .mb-create-preview {
+  display: grid;
+  place-items: center;
+  height: 190px;
+  margin-top: 8px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px #0008;
+  overflow: hidden;
+}
+
+.dimancer-board-create-dialog .mb-preview-board {
+  box-sizing: content-box;
+  border-style: solid;
+  background-position: top left;
+  box-shadow: 0 5px 14px #000a, inset 0 0 6px #0005;
+}
+
+.dimancer-board-create-dialog .mb-custom-size,
+.dimancer-board-create-dialog .mb-plain-color {
+  display: none;
+}
+
+.dimancer-board-create-dialog .mb-create.custom .mb-custom-size,
+.dimancer-board-create-dialog .mb-create.plain .mb-plain-color {
+  display: flex;
+}
+
+.dimancer-board-create-dialog .mb-create-side .form-group > label {
+  flex: 0 0 auto;
+  min-width: 7.5em;
+  white-space: nowrap;
+}
+
+.dimancer-board-create-dialog .mb-create-side .form-fields {
+  flex: 1;
+  min-width: 0;
+}
+
+.dimancer-board-create-dialog .mb-custom-size input {
+  min-width: 0;
+}
+
+.dimancer-board-create-dialog .mb-times {
+  flex: 0 0 auto;
+}
+
+.dimancer-board-create-dialog .mb-frame-reset {
+  flex: 0 0 auto;
+  width: var(--input-height, 28px);
+}
+
+/* Scene configuration: no border without a surface */
+.dimancer-board-config:has(select[name="flags.dimancer_board.board.surface.id"] option[value=""]:checked) .dimancer-board-frame-config {
+  display: none;
+}
+
+/* Scene configuration: the plain board's colour only for a plain board */
+.dimancer-board-config .dimancer-board-plain-config {
+  display: none;
+}
+
+.dimancer-board-config:has(select[name="flags.dimancer_board.board.surface.id"] option[value="plain"]:checked) .dimancer-board-plain-config {
+  display: flex;
+}
+
+/* ---------------------------------------- */
+/*  Add-evidence dialog                     */
+/* ---------------------------------------- */
+
+.dimancer-board-add .dimancer-board-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dimancer-board-add .form-fields input[type="file"] {
+  flex: 1;
+}
+
+/* ---------------------------------------- */
+/*  Zoomable picture (Evidence Journal)     */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 50% 40%, rgb(255 255 255 / 6%), transparent 70%),
+    #15151a;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dimancer-board-journal .mb-stage.panning {
+  cursor: grabbing;
+}
+
+.dimancer-board-journal .mb-stage img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  border: none;
+  transform-origin: 0 0;
+  visibility: hidden;
+  image-rendering: auto;
+  pointer-events: none;
+}
+
+.dimancer-board-journal .mb-stage.ready img {
+  visibility: visible;
+}
+
+.dimancer-board-journal .mb-broken {
+  display: none;
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  color: var(--color-light-3, #bbb);
+  text-align: center;
+}
+
+.dimancer-board-journal .mb-stage.broken .mb-broken {
+  display: block;
+}
+
+.dimancer-board-journal .mb-zoom {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 65%);
+  cursor: default;
+}
+
+.dimancer-board-journal .mb-zoom button {
+  flex: none;
+  width: 30px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.dimancer-board-journal .mb-zoom button {
+  border: none;
+  background: none;
+  color: #eee;
+}
+
+.dimancer-board-journal .mb-zoom button:hover {
+  background: rgb(255 255 255 / 15%);
+}
+
+.dimancer-board-journal .mb-zoom-label {
+  min-width: 46px;
+  color: #eee;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ---------------------------------------- */
+/*  Evidence list                           */
+/* ---------------------------------------- */
+
+/* The window is a column: fixed header and footer, the rows in between scroll. */
+.dimancer-board-list .window-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.dimancer-board-list .mb-list {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dimancer-board-list .mb-list-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--color-border, rgb(255 255 255 / 12%));
+}
+
+.dimancer-board-list .mb-list-modes {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 25%);
+}
+
+.dimancer-board-list .mb-list-modes button {
+  flex: 1;
+  min-height: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.dimancer-board-list .mb-list-modes button.active {
+  background: rgb(255 255 255 / 14%);
+  opacity: 1;
+}
+
+.dimancer-board-list .mb-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dimancer-board-list .mb-list-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dimancer-board-list .mb-list-search > i {
+  opacity: 0.55;
+}
+
+.dimancer-board-list .mb-list-search input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+}
+
+.dimancer-board-list .mb-list-tools select {
+  flex: none;
+  width: auto;
+  height: 26px;
+  font-size: 12px;
+}
+
+.dimancer-board-list .mb-list-tools button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+}
+
+.dimancer-board-list .mb-list-rows {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
+  padding: 4px 4px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.dimancer-board-list .mb-list-rows > li[hidden] {
+  display: none;
+}
+
+/* One compact line per piece of evidence: tiny thumbnail + name */
+.dimancer-board-list .mb-list-row,
+.dimancer-board-list .mb-list-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 6px 2px calc(6px + var(--depth, 0) * 14px);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dimancer-board-list .mb-list-row:hover,
+.dimancer-board-list .mb-list-group:hover {
+  background: rgb(255 255 255 / 7%);
+}
+
+.dimancer-board-list .mb-list-row.current {
+  background: rgb(255 216 77 / 14%);
+  box-shadow: inset 2px 0 0 #ffd84d;
+}
+
+.dimancer-board-list .mb-list-row.is-hidden .mb-list-thumb,
+.dimancer-board-list .mb-list-row.is-hidden .mb-list-title {
+  opacity: 0.5;
+}
+
+.dimancer-board-list .mb-list-thumb {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 3px;
+  background: #8c8c8c;
+}
+
+.dimancer-board-list .mb-list-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.dimancer-board-list .mb-list-title.untitled {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.dimancer-board-list .mb-list-marks {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.dimancer-board-list .mb-cat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+/* Group headers: folders and categories */
+.dimancer-board-list .mb-list-group {
+  margin-top: 2px;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.dimancer-board-list .mb-group-caret {
+  flex: none;
+  font-size: 10px;
+  opacity: 0.6;
+  transition: transform 120ms;
+}
+
+.dimancer-board-list .mb-list-group.collapsed .mb-group-caret {
+  transform: rotate(-90deg);
+}
+
+.dimancer-board-list .mb-group-icon {
+  flex: none;
+  color: var(--group-color);
+}
+
+.dimancer-board-list .mb-list-group[style*="transparent"] .mb-group-icon {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.dimancer-board-list .mb-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dimancer-board-list .mb-group-count {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 10%);
+  font-size: 11px;
+  font-weight: normal;
+  text-align: center;
+}
+
+.dimancer-board-list .mb-group-menu {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  opacity: 0;
+}
+
+.dimancer-board-list .mb-list-group:hover .mb-group-menu,
+.dimancer-board-list .mb-group-menu:focus-visible {
+  opacity: 0.8;
+}
+
+/* Drag and drop */
+.dimancer-board-list .dragging {
+  opacity: 0.4;
+}
+
+.dimancer-board-list .drop-target {
+  outline: 2px dashed #ffd84d;
+  outline-offset: -2px;
+  background: rgb(255 216 77 / 10%);
+}
+
+.dimancer-board-list .mb-list-empty {
+  padding: 16px;
+  font-style: italic;
+  text-align: center;
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dimancer-board-list .mb-list-footer {
+  flex: none;
+  padding: 5px 10px;
+  border-top: 1px solid var(--color-border, rgb(255 255 255 / 12%));
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+/* ---------------------------------------- */
+/*  Menus: headings, dots, checks           */
+/* ---------------------------------------- */
+
+.dimancer-board-menu .mb-menu-heading {
+  margin: 2px 8px 4px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.dimancer-board-menu .mb-menu-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+.dimancer-board-menu .mb-menu-check {
+  margin-left: auto;
+  opacity: 0.8;
+}
+
+/* ---------------------------------------- */
+/*  Category manager                        */
+/* ---------------------------------------- */
+
+.dimancer-board-categories .mb-cat-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dimancer-board-categories .mb-cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 50vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.dimancer-board-categories .mb-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dimancer-board-categories .mb-cat-preview {
+  flex: none;
+  width: 20px;
+  text-align: center;
+}
+
+.dimancer-board-categories .mb-cat-row input[type="color"] {
+  flex: none;
+  width: 32px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.dimancer-board-categories .mb-cat-row select {
+  flex: none;
+  width: 120px;
+}
+
+.dimancer-board-categories .mb-cat-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.dimancer-board-categories .mb-cat-count {
+  flex: none;
+  min-width: 20px;
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.6;
+}
+
+.dimancer-board-categories .mb-cat-row button {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+}
+
+/* -------------------------------------------- */
+/*  Stickers: pen bar, note editor, list thumbs */
+/* -------------------------------------------- */
+
+#dimancer-board-pen {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 8px;
+  background: rgb(20 20 24 / 92%);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
+  color: #eee;
+  font-size: 13px;
+  pointer-events: auto;
+}
+
+#dimancer-board-pen button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+#dimancer-board-pen button.swatch {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgb(255 255 255 / 25%);
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+#dimancer-board-pen button.swatch:hover,
+#dimancer-board-pen button.swatch.active {
+  border-color: #fff;
+  background: var(--swatch);
+  box-shadow: 0 0 0 2px rgb(255 152 41 / 70%);
+}
+
+#dimancer-board-pen .mb-pen-width {
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+#dimancer-board-pen .mb-pen-width span {
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: 50%;
+  background: #eee;
+}
+
+#dimancer-board-pen .mb-pen-width.active,
+#dimancer-board-pen .mb-pen-width:hover {
+  border-color: rgb(255 152 41 / 80%);
+  background: rgb(255 255 255 / 8%);
+}
+
+#dimancer-board-pen .mb-pen-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 2px;
+  background: rgb(255 255 255 / 18%);
+}
+
+#dimancer-board-pen .mb-pen-label,
+#dimancer-board-pen .mb-pen-hint {
+  white-space: nowrap;
+}
+
+#dimancer-board-pen .mb-pen-hint {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+/* Writing on a sticky note: a textarea laid exactly over the note on the canvas */
+textarea.dimancer-board-note-editor {
+  position: fixed;
+  z-index: 40;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: hidden;
+  transform-origin: center;
+  border: none;
+  border-radius: 0;
+  outline: 2px solid rgb(255 152 41 / 90%);
+  outline-offset: 2px;
+  background: var(--paper);
+  box-shadow: 3px 5px 0 rgb(0 0 0 / 22%);
+  color: #2b2b2b;
+  font-family: Signika, sans-serif;
+  text-align: center;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+textarea.dimancer-board-note-editor:focus {
+  box-shadow: 3px 5px 0 rgb(0 0 0 / 22%);
+}
+
+.dimancer-board-list .mb-list-sticker {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #9c7650;   /* sketches are ink on cork */
+  color: #222;
+  font-size: 11px;
+}
+
+/* ---------------------------------------- */
+/*  Evidence Journal (POC)                  */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-journal {
+  display: grid;
+  grid-template-columns: minmax(240px, 40%) minmax(0, 1fr);
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.dimancer-board-journal .mb-journal-list {
+  border-right: 1px solid var(--color-border, #0004);
+  min-width: 0;
+}
+
+.dimancer-board-journal .mb-journal-filters select {
+  flex: 1;
+  min-width: 0;
+}
+
+.dimancer-board-journal .mb-journal-placed {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--font-size-11, 11px);
+  color: var(--color-warm-2, #c9593f);
+}
+
+.dimancer-board-journal .mb-journal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.dimancer-board-journal .mb-journal-image {
+  flex: none;
+  margin: 0;
+  height: 260px;
+  min-height: 140px;
+  max-height: 80vh;
+  border-radius: 6px;
+}
+
+/* The picture's height can be dragged (bottom-right corner); the zoom bar stays clear of the grip. */
+.dimancer-board-journal .mb-stage.mb-journal-image {
+  resize: vertical;
+}
+
+.dimancer-board-journal .mb-journal-image .mb-zoom {
+  bottom: 8px;
+}
+
+.dimancer-board-journal .mb-journal-image.empty {
+  display: grid;
+  place-items: center;
+  height: auto;
+  min-height: 120px;
+  background: #0003;
+  font-size: 2em;
+  opacity: 0.4;
+}
+
+.dimancer-board-journal .mb-journal-title {
+  font-size: var(--font-size-18, 18px);
+  font-weight: bold;
+  margin: 0;
+}
+
+.dimancer-board-journal .mb-journal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dimancer-board-journal .mb-journal-meta select {
+  flex: 1 1 140px;
+}
+
+.dimancer-board-journal .mb-journal-access {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0 10px;
+}
+
+.dimancer-board-journal .mb-journal-access.is-hidden {
+  color: var(--color-level-warning, #ee9b3a);
+  border-color: currentColor;
+}
+
+.dimancer-board-journal .mb-journal-detail h3 {
+  margin: 4px 0;
+  font-size: var(--font-size-14, 14px);
+  border-bottom: 1px solid var(--color-border, #0004);
+}
+
+.dimancer-board-journal .mb-journal-boards ul {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dimancer-board-journal .mb-journal-boards ul button,
+.dimancer-board-journal .mb-journal-place {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+.dimancer-board-journal .mb-journal-boards ul button.current {
+  border-color: var(--color-warm-2, #c9593f);
+}
+
+.dimancer-board-journal .mb-journal-none,
+.dimancer-board-journal .mb-journal-empty {
+  margin: 0 0 6px;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.dimancer-board-journal .mb-journal-empty {
+  margin: auto;
+  text-align: center;
+  max-width: 240px;
+}
+
+.dimancer-board-journal .mb-journal-notes prose-mirror {
+  min-height: 120px;
+}
+
+.dimancer-board-journal .mb-journal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  font-size: var(--font-size-12, 12px);
+}
+
+.dimancer-board-journal .mb-journal-foot .mb-journal-link {
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dimancer-board-journal .mb-journal-author {
+  opacity: 0.7;
+}
+
+.dimancer-board-journal .mb-journal-delete {
+  flex: 0 0 auto;
+  width: var(--input-height, 28px);
+}
+
+.dimancer-board-journal .mb-journal-delete {
+  margin-left: auto;
+}
+
+/* GM: show the evidence to the players, take everyone to it on its board */
+.dimancer-board-journal .mb-journal-gm {
+  display: flex;
+  gap: 6px;
+}
+
+.dimancer-board-journal .mb-journal-gm button {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dimancer-board-journal .mb-journal-boards li {
+  display: flex;
+  gap: 4px;
+}
+
+.dimancer-board-journal .mb-journal-boards ul button.mb-journal-jumpall {
+  flex: 0 0 auto;
+  width: var(--input-height, 28px);
+  justify-content: center;
+}
+
+/* The permanent "Open board" button over the list */
+.dimancer-board-journal .mb-journal-openboard {
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dimancer-board-journal .mb-journal-openboard .mb-caret {
+  margin-left: auto;
+}
+
+.dimancer-board-journal .mb-journal-read {
+  flex: none;
+  margin-top: -4px;
+}
+
+.dimancer-board-journal .mb-pdf-pages {
+  min-width: 0;
+  padding: 0 6px;
+  border-right: 1px solid rgb(255 255 255 / 20%);
+}
+
+.dimancer-board-pdf .window-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dimancer-board-pdf iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.dimancer-board-journal .mb-empty {
+  margin: 0;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* A text document: its pages as sheets of A4 paper, one at a time. */
+.dimancer-board-journal .mb-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+}
+
+.dimancer-board-journal .mb-doc-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dimancer-board-journal .mb-doc-bar button {
+  flex: 0 0 auto;
+  width: var(--input-height, 28px);
+  min-height: 0;
+  padding: 0;
+}
+
+.dimancer-board-journal .mb-doc-count {
+  min-width: 90px;
+  text-align: center;
+  font-size: var(--font-size-12, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.dimancer-board-journal .mb-doc-spacer {
+  flex: 1;
+}
+
+/* Paper, but not A4 here: a box as tall as the picture would be (drag its corner, remembered),
+   scrolling through a long page. */
+.dimancer-board-journal .mb-doc-paper {
+  height: 360px;
+  min-height: 160px;
+  max-height: 80vh;
+  resize: vertical;
+  overflow: auto;
+  padding: 24px 28px;
+  background: #fbfaf5;
+  color: #222;
+  border: 1px solid #d8d2c2;
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 35%), 4px 4px 0 -1px #ece8dc, 4px 4px 0 0 #d8d2c2;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: var(--font-size-14, 14px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.dimancer-board-journal .mb-doc-paper :is(h1, h2, h3, h4) {
+  color: #111;
+  border: none;
+  font-family: inherit;
+}
+
+.dimancer-board-journal .mb-doc-paper prose-mirror {
+  min-height: 100%;
+  color: inherit;
+}
+
+.dimancer-board-journal .mb-doc-paper prose-mirror.active .editor-content {
+  min-height: 200px;
+}
+
+.dimancer-board-journal .mb-list-sticker.is-document {
+  color: var(--color-text-secondary, #bbb);
+}
+
+#journal .header-actions .dimancer-board-journal-open {
+  flex-basis: 100%;
+}
+
+.dimancer-board-evidence-page .mb-evidence-doc {
+  margin-bottom: 1em;
+  padding-bottom: 1em;
+  border-bottom: 1px dashed var(--color-border, #0004);
+}
+
+.dimancer-board-evidence-page .mb-evidence-figure img {
+  max-width: 100%;
+  border: none;
+}
+
+.dimancer-board-journal .mb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--swatch, #888);
+  color: var(--swatch, inherit);
+}

@@ -1,0 +1,13 @@
+<div>
+  {{#if title.show}}
+  <header class="journal-page-header"><h{{title.level}}>{{name}}</h{{title.level}}></header>
+  {{/if}}
+  {{#if isDocument}}
+  {{#each docPagesHTML}}<div class="journal-page-content mb-evidence-doc">{{{this}}}</div>{{/each}}
+  {{else}}
+  <figure class="journal-page-content mb-evidence-figure">
+    {{#if src}}<img src="{{src}}" alt="{{name}}">{{/if}}
+  </figure>
+  {{/if}}
+  {{#if notes}}<div class="journal-page-content mb-evidence-notes">{{{notesHTML}}}</div>{{/if}}
+</div>

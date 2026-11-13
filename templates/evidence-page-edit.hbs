@@ -1,0 +1,7 @@
+<section>
+  <figure class="image-preview">
+    {{#if src}}<img src="{{src}}" alt="{{name}}">{{/if}}
+  </figure>
+  {{formGroup fields.src value=source.src input=srcInput}}
+  {{formGroup notesField value=notes name="system.notes" stacked=true}}
+</section>

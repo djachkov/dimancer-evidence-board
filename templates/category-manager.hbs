@@ -1,0 +1,20 @@
+<div class="mb-cat-manager">
+  <p class="hint">{{localize "DIMANCER_BOARD.Category.ManageHint"}}</p>
+  <ol class="mb-cat-list">
+    {{#each categories}}
+    <li class="mb-cat-row" data-id="{{id}}">
+      <i class="mb-cat-preview fa-solid {{icon}} fa-fw" inert></i>
+      <input type="color" name="color" value="{{color}}" aria-label="{{localize "DIMANCER_BOARD.Category.Color"}}">
+      <select name="icon" aria-label="{{localize "DIMANCER_BOARD.Category.Icon"}}">
+        {{#each ../icons}}<option value="{{value}}" {{#if (eq value ../icon)}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+      <input type="text" name="name" value="{{name}}" aria-label="{{localize "DIMANCER_BOARD.Category.Name"}}">
+      <span class="mb-cat-count" data-tooltip="DIMANCER_BOARD.Category.CountHint">{{count}}</span>
+      <button type="button" class="icon fa-solid fa-chevron-up" data-cat="up" aria-label="{{localize "DIMANCER_BOARD.Category.Up"}}"></button>
+      <button type="button" class="icon fa-solid fa-chevron-down" data-cat="down" aria-label="{{localize "DIMANCER_BOARD.Category.Down"}}"></button>
+      <button type="button" class="icon fa-solid fa-trash" data-cat="remove" aria-label="{{localize "DIMANCER_BOARD.Category.Remove"}}"></button>
+    </li>
+    {{/each}}
+  </ol>
+  <button type="button" data-cat="add"><i class="fa-solid fa-plus" inert></i> {{localize "DIMANCER_BOARD.Category.Add"}}</button>
+</div>
