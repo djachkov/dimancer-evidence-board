@@ -1,31 +1,48 @@
 import { MODULE_ID, t } from "./constants.mjs";
-import { INK_COLORS, NOTE_COLORS, PEN_WIDTHS } from "./stickers.mjs";
+import { PEN_WIDTHS } from "./stickers.mjs";
+import { inkColors, noteColors } from "./styles.mjs";
 
 /**
  * The small floating bar shown while the Note or Draw tool is active: paper colour for new notes,
- * or ink colour, pen width and undo for drawing. The choices are remembered per browser.
+ * or ink colour, pen width and undo for drawing. The colours come from the board's card style; the
+ * choices are remembered per browser, the colours per style.
  */
 
 const KEY = `${MODULE_ID}.pen`;
-const DEFAULTS = { ink: INK_COLORS[0].color, width: PEN_WIDTHS[1].width, paper: NOTE_COLORS[0].color };
 
-export function penPrefs() {
-  let saved = {};
+function readPrefs() {
   try {
-    saved = JSON.parse(localStorage.getItem(KEY) ?? "{}") ?? {};
+    return JSON.parse(localStorage.getItem(KEY) ?? "{}") ?? {};
   } catch(err) {
-    saved = {};
+    return {};
   }
+}
+
+/** The pen and paper to use on a board of this card style. */
+export function penPrefs(style = "classic") {
+  const saved = readPrefs();
+  // Colours are kept per style; an older single colour counts for whichever style offers it.
+  const pick = (value, list) => {
+    const v = (value && (typeof value === "object")) ? value[style] : value;
+    return list.some(c => c.color === v) ? v : list[0].color;
+  };
   return {
-    ink: INK_COLORS.some(c => c.color === saved.ink) ? saved.ink : DEFAULTS.ink,
-    width: PEN_WIDTHS.some(w => w.width === saved.width) ? saved.width : DEFAULTS.width,
-    paper: NOTE_COLORS.some(c => c.color === saved.paper) ? saved.paper : DEFAULTS.paper
+    ink: pick(saved.ink, inkColors(style)),
+    width: PEN_WIDTHS.some(w => w.width === saved.width) ? saved.width : PEN_WIDTHS[1].width,
+    paper: pick(saved.paper, noteColors(style))
   };
 }
 
-function savePrefs(patch) {
+function savePrefs(style, group, value) {
+  const saved = readPrefs();
+  if ( group === "width" ) saved.width = value;
+  else {
+    const per = (saved[group] && (typeof saved[group] === "object")) ? saved[group] : {};
+    per[style] = value;
+    saved[group] = per;
+  }
   try {
-    localStorage.setItem(KEY, JSON.stringify({ ...penPrefs(), ...patch }));
+    localStorage.setItem(KEY, JSON.stringify(saved));
   } catch(err) { /* private mode: the choice just isn't remembered */ }
 }
 
@@ -38,21 +55,21 @@ export function closePenBar() {
 
 /**
  * @param {"note"|"draw"} tool
- * @param {{onUndo: Function}} handlers
+ * @param {{onUndo: Function, style?: string}} options   style: the board's card style
  */
-export function showPenBar(tool, { onUndo }) {
+export function showPenBar(tool, { onUndo, style = "classic" }) {
   closePenBar();
-  const prefs = penPrefs();
+  const prefs = penPrefs(style);
   const swatch = (c, group, key, active) => `<button type="button" class="swatch${active ? " active" : ""}"
     data-pen="${group}" data-value="${c.color}" style="--swatch: ${c.color}"
     aria-label="${t(`${key}.${c.key}`)}" data-tooltip="${t(`${key}.${c.key}`)}"></button>`;
   let html;
   if ( tool === "note" ) {
     html = `<span class="mb-pen-label">${t("Sticker.Paper")}</span>
-      ${NOTE_COLORS.map(c => swatch(c, "paper", "Sticker.PaperColor", c.color === prefs.paper)).join("")}
+      ${noteColors(style).map(c => swatch(c, "paper", "Sticker.PaperColor", c.color === prefs.paper)).join("")}
       <span class="mb-pen-hint">${t("Sticker.NoteHint")}</span>`;
   } else {
-    html = `${INK_COLORS.map(c => swatch(c, "ink", "Sticker.InkColor", c.color === prefs.ink)).join("")}
+    html = `${inkColors(style).map(c => swatch(c, "ink", "Sticker.InkColor", c.color === prefs.ink)).join("")}
       <span class="mb-pen-sep"></span>
       ${PEN_WIDTHS.map(w => `<button type="button" class="mb-pen-width${w.width === prefs.width ? " active" : ""}"
         data-pen="width" data-value="${w.width}" style="--dot: ${Math.max(4, w.width)}px"
@@ -72,7 +89,7 @@ export function showPenBar(tool, { onUndo }) {
     const group = button.dataset.pen;
     if ( group === "undo" ) return onUndo();
     const value = group === "width" ? Number(button.dataset.value) : button.dataset.value;
-    savePrefs({ [group]: value });
+    savePrefs(style, group, value);
     for ( const b of bar.querySelectorAll(`[data-pen="${group}"]`) ) b.classList.toggle("active", b === button);
   });
   document.body.append(bar);

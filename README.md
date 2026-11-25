@@ -11,7 +11,8 @@ scene → **Turn into Evidence Board**. A new board is a gridless scene that sho
 bar. Players can edit it (its Accessibility is *Owner*).
 
 **Choose its look** when you create it. Pick a surface from the list: cork (fine, classic or coarse),
-whiteboard, chalkboard, green or burgundy felt, kraft paper, or a plain colour of your own. Then pick a
+whiteboard, chalkboard, green or burgundy felt, kraft paper, wooden planks (a quest board), a cyber
+grid, or a plain colour of your own. Then pick a
 size (small 2400×1800, medium 4000×3000, large 6000×4500, huge 8000×6000, or custom), the border
 colour (left empty, it follows the surface; ↺ resets it), and the colour around the board. The preview shows the framed board on that colour, and the dialog remembers what you
 chose last. Every board sits in a frame that suits its surface (wood around cork, aluminium around the
@@ -19,8 +20,24 @@ whiteboard), with a soft shadow on the surrounding colour. Afterwards, change th
 board's colour and the border colour (empty for the surface's own) in the board's scene configuration, and the surrounding
 colour as its **Background Color**. A background image set there is drawn on top of the surface,
 inside the frame, so use that for a picture of your own and clear it to get the surface back.
-Whiteboard, chalkboard and felt are generated in code, so each board gets its own variation. The
-cork and paper images are CC0 textures from ambientCG (see `assets/surfaces/SOURCES.md`).
+Whiteboard, chalkboard, felt and the cyber grid are generated in code, so each board gets its own
+variation. The cork, paper and plank images are CC0 textures from ambientCG (see
+`assets/surfaces/SOURCES.md`).
+
+**Styles** set how the cards, pins and threads look, each on its own (Create dialog and scene
+configuration). Picking a surface switches all three to its theme, and you can mix them afterwards:
+
+| | Classic | Medieval (planks) | Cyberpunk (cyber grid) |
+|---|---|---|---|
+| Cards | Polaroids, A4 sheets with a paper clip, sticky notes | Torn parchment, a wax seal on a stack of pages, tinted scraps for notes, ribbons for categories | Dark holo panels lit in the category colour, scanlines over pictures, documents as terminal windows |
+| Pins | Red push-pins | Forged nails | Glowing nodes |
+| Threads | Yarn | Twisted twine, looped round the nail | Neon data lines routed like circuit traces |
+
+Note paper, ink and thread colours follow the style too. The quest board's timber frame can carry a
+**sign** (the board's name, or text of your own), a **shingle roof** and **lanterns**; the cyber
+frame a **header** and **corner brackets**. They sit in the space around the board and are left out
+where there's no room. **Animate** (off by default) moves packets along data lines, pulses node
+pins, flickers the lanterns and sweeps a scanline down a cyber board.
 
 **Pin evidence** while the board is open. Any of these works:
 
@@ -204,6 +221,14 @@ the card shows a grey placeholder (the Evidence Journal still shows them), so up
   Scene.
 - **Hidden cards** are only drawn for GMs, but their data still reaches every client, the same as
   core's hidden Tiles. Don't hide spoilers someone could read from the browser console.
+
+- **Styles are drawing only.** `scripts/styles.mjs` holds the registries (themes, palettes,
+  decorations); `scripts/render/` draws them: card painters (`cards-classic/parchment/holo.mjs`),
+  `pins.mjs`, `threads.mjs` (a painter knows a thread's path, for its hit area, and draws it),
+  `decor.mjs` (frames and decorations) and one throttled ticker (`animation.mjs`). A style never
+  changes a card's paper box, so pins, hit areas and threads stay put when it changes. A board
+  stores `board.style = {cards, pins, threads}` and `board.decor = {sign, roof, lanterns, hud,
+  brackets, animate, signText}`; without them it takes its surface's theme.
 
 Card data shape (`scripts/cards.mjs`) and thread data shape (`scripts/links.mjs`, stored under
 `flags.dimancer_board.links.<id>`):

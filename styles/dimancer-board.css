@@ -214,6 +214,58 @@ body.dimancer-board-connecting #board {
   min-width: 0;
 }
 
+/* Style: cards, pins and threads side by side, decorations under them */
+.dimancer-board-create-dialog .mb-create-style {
+  margin: 8px 0 0;
+  padding: 4px 8px 8px;
+}
+
+.dimancer-board-create-dialog .mb-style-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+
+.dimancer-board-create-dialog .mb-style-fields > .form-group {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  margin: 0;
+}
+
+.dimancer-board-create-dialog .mb-style-fields > .form-group > label {
+  flex: none;
+}
+
+.dimancer-board-create-dialog .mb-style-fields .mb-decor,
+.dimancer-board-create-dialog .mb-style-fields .mb-decor-text,
+.dimancer-board-create-dialog .mb-style-fields .mb-decor-hint {
+  grid-column: 1 / -1;
+}
+
+.dimancer-board-create-dialog .mb-style-fields .mb-decor-hint {
+  margin: 0;
+}
+
+.mb-style-fields .mb-decor-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px 14px;
+}
+
+.mb-style-fields .mb-decor-options label.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+/* Foundry's form layout would otherwise show what the frame can't have */
+.mb-style-fields [hidden] {
+  display: none !important;
+}
+
 .dimancer-board-create-dialog .mb-times {
   flex: 0 0 auto;
 }
@@ -801,8 +853,8 @@ textarea.dimancer-board-note-editor {
   outline-offset: 2px;
   background: var(--paper);
   box-shadow: 3px 5px 0 rgb(0 0 0 / 22%);
-  color: #2b2b2b;
-  font-family: Signika, sans-serif;
+  color: var(--ink, #2b2b2b);
+  font-family: var(--font, Signika, sans-serif);
   text-align: center;
   resize: none;
   white-space: pre-wrap;

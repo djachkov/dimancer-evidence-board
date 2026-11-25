@@ -50,7 +50,9 @@
       "Preview": "Preview",
       "Frame": "Border colour",
       "FrameReset": "Use the surface's own border colour",
-      "FrameHint": "Leave it empty to use the surface's own border colour (shown faintly)."
+      "FrameHint": "Leave it empty to use the surface's own border colour (shown faintly).",
+      "Planks": "Wooden planks (quest board)",
+      "CyberGrid": "Cyber grid (cyberpunk)"
     },
     "Size": {
       "Label": "Size",
@@ -142,7 +144,16 @@
         "blue": "Blue",
         "green": "Green",
         "yellow": "Yellow",
-        "black": "Black"
+        "black": "Black",
+        "hemp": "Hemp",
+        "wool": "Red wool",
+        "cord": "Black cord",
+        "moss": "Moss",
+        "woad": "Woad blue",
+        "cyan": "Cyan",
+        "magenta": "Magenta",
+        "lime": "Lime",
+        "amber": "Amber"
       }
     },
     "Add": {
@@ -196,14 +207,34 @@
         "blue": "Blue",
         "green": "Green",
         "orange": "Orange",
-        "white": "White"
+        "white": "White",
+        "vellum": "Vellum",
+        "aged": "Aged",
+        "ochre": "Ochre",
+        "rose": "Rose",
+        "sage": "Sage",
+        "ash": "Ash",
+        "cyan": "Cyan",
+        "magenta": "Magenta",
+        "lime": "Lime",
+        "amber": "Amber",
+        "violet": "Violet"
       },
       "InkColor": {
         "black": "Black",
         "red": "Red",
         "blue": "Blue",
         "green": "Green",
-        "white": "White"
+        "white": "White",
+        "irongall": "Iron gall",
+        "cinnabar": "Cinnabar",
+        "woad": "Woad",
+        "verdigris": "Verdigris",
+        "gold": "Gold",
+        "cyan": "Cyan",
+        "magenta": "Magenta",
+        "lime": "Lime",
+        "amber": "Amber"
       },
       "Width": {
         "fine": "Fine pen",
@@ -284,6 +315,39 @@
       "PdfPages": "{count} p.",
       "PdfFirstPage": "Its first page. The book button reads the whole PDF.",
       "ReadPdfPages": "Read the PDF ({count} pages)"
+    },
+    "Style": {
+      "Legend": "Style",
+      "CardsLabel": "Cards",
+      "PinsLabel": "Pins",
+      "ThreadsLabel": "Threads",
+      "Cards": {
+        "classic": "Polaroids and paper",
+        "parchment": "Parchment",
+        "holo": "Holographic panels"
+      },
+      "Pins": {
+        "pushpin": "Push-pins",
+        "nail": "Nails",
+        "node": "Glowing nodes"
+      },
+      "Threads": {
+        "yarn": "Yarn",
+        "twine": "Twine",
+        "dataline": "Data lines"
+      }
+    },
+    "Decor": {
+      "Label": "Decorations",
+      "sign": "Sign",
+      "roof": "Shingle roof",
+      "lanterns": "Lanterns",
+      "hud": "Header",
+      "brackets": "Corner brackets",
+      "animate": "Animate",
+      "Text": "Sign text",
+      "TextPlaceholder": "The board's name",
+      "Hint": "Decorations sit in the space around the board, and are left out where there isn't room for them."
     }
   },
   "TYPES": {

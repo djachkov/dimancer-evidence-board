@@ -4,10 +4,13 @@ import {
   shadeColor, validColor
 } from "./surface-presets.mjs";
 import { surfaceChoices } from "./surfaces.mjs";
+import { normalizeDecor, normalizeStyle } from "./styles.mjs";
+import { bindStyleFields, readStyleFields, styleFieldsData } from "./style-fields.mjs";
 
 /**
  * The Create Board dialog: name, surface (a scrollable list with a thumbnail per option), size,
- * board and surrounding colours, and a live preview of the framed board on its surround.
+ * board and surrounding colours, a live preview of the framed board on its surround, and the style
+ * of its cards, pins and threads with the decorations its frame can have.
  */
 
 const SETTING = "createDefaults";
@@ -26,8 +29,12 @@ function lastChoice() {
   const saved = game.settings.get(MODULE_ID, SETTING) ?? {};
   const size = (saved.size === "custom") || BOARD_SIZES.some(s => s.id === saved.size) ? saved.size : DEFAULT_SIZE;
   const dims = boardSize(size === "custom" ? null : size, saved.width ?? BOARD_DEFAULTS.width, saved.height ?? BOARD_DEFAULTS.height);
+  const surface = getSurface(saved.surface)?.id ?? DEFAULT_SURFACE;
   return {
-    surface: getSurface(saved.surface)?.id ?? DEFAULT_SURFACE,
+    surface,
+    style: normalizeStyle(saved.style, surface),
+    // The sign text belongs to one board, so it isn't carried over to the next.
+    decor: { ...normalizeDecor(saved.decor), signText: "" },
     color: validColor(saved.color, BOARD_DEFAULTS.color),
     frame: validColor(saved.frame, null),
     surround: validColor(saved.surround, BOARD_DEFAULTS.surround),
@@ -60,7 +67,8 @@ function readForm(form) {
     frame: validColor(els.frame.value, null),
     surround: els.surround.value,
     size,
-    ...boardSize(size === "custom" ? null : size, els.width.value, els.height.value)
+    ...boardSize(size === "custom" ? null : size, els.width.value, els.height.value),
+    ...readStyleFields(form)
   };
 }
 
@@ -103,7 +111,7 @@ function updatePreview(root) {
 
 /**
  * Ask for everything a new board needs.
- * @returns {Promise<{name, surface, color, surround, size, width, height}|null>}
+ * @returns {Promise<{name, surface, color, surround, size, width, height, style, decor}|null>}
  */
 export async function promptNewBoard() {
   const last = lastChoice();
@@ -123,7 +131,8 @@ export async function promptNewBoard() {
     limits: SIZE_LIMITS,
     color: last.color,
     frame: last.frame ?? "",
-    surround: last.surround
+    surround: last.surround,
+    style: styleFieldsData(last.style, last.decor)
   });
   const choice = await foundry.applications.api.DialogV2.prompt({
     window: { title: t("Scene.CreateTitle"), icon: "fa-solid fa-thumbtack" },
@@ -139,6 +148,9 @@ export async function promptNewBoard() {
       const root = dialog.element;
       root.querySelector(".mb-create")?.addEventListener("input", () => updatePreview(root));
       root.querySelector(".mb-create")?.addEventListener("change", () => updatePreview(root));
+      // Picking a surface switches the styles to its theme and offers its frame's decorations.
+      const styleFields = bindStyleFields(root, () => root.querySelector('input[name="surface"]:checked')?.value ?? null);
+      for ( const radio of root.querySelectorAll('input[name="surface"]') ) radio.addEventListener("change", () => styleFields.surfaceChanged());
       // Back to the surface's own frame colour.
       root.querySelector(".mb-frame-reset")?.addEventListener("click", () => {
         root.querySelector('color-picker[name="frame"]').value = "";

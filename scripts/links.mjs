@@ -149,9 +149,76 @@ export function linkDelete(ids, deletion) {
  * midpoint, sagging more on longer threads.
  * @returns {{x: number, y: number}}  The control point
  */
-export function sagControl(p1, p2) {
+export function sagControl(p1, p2, { amount = 0.08, max = 80 } = {}) {
   const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-  return { x: (p1.x + p2.x) / 2, y: ((p1.y + p2.y) / 2) + Math.min(len * 0.08, 80) };
+  return { x: (p1.x + p2.x) / 2, y: ((p1.y + p2.y) / 2) + Math.min(len * amount, max) };
+}
+
+/**
+ * A data line between two pins, routed like a circuit trace: straight along the longer axis, one
+ * 45° run to make up the other, then straight again. No sag.
+ * @returns {{x: number, y: number}[]}  The corners, from p1 to p2 (2 to 4 points)
+ */
+export function circuitPath(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  const sx = Math.sign(dx);
+  const sy = Math.sign(dy);
+  if ( (ax < 0.5) || (ay < 0.5) || (Math.abs(ax - ay) < 0.5) ) return [{ ...p1 }, { ...p2 }];
+  const pts = [{ ...p1 }];
+  if ( ax > ay ) {
+    const run = (ax - ay) / 2;
+    pts.push({ x: p1.x + (sx * run), y: p1.y }, { x: p1.x + (sx * (run + ay)), y: p2.y });
+  } else {
+    const run = (ay - ax) / 2;
+    pts.push({ x: p1.x, y: p1.y + (sy * run) }, { x: p2.x, y: p1.y + (sy * (run + ax)) });
+  }
+  pts.push({ ...p2 });
+  return pts;
+}
+
+/**
+ * Evenly spaced points along a polyline (its corners always included), for hit areas and for
+ * things that travel along it.
+ * @param {{x: number, y: number}[]} corners
+ * @param {number} [segments=24]  Roughly how many pieces to cut it into
+ */
+export function densify(corners, segments = 24) {
+  const total = polylineLength(corners);
+  if ( !total ) return corners.map(p => ({ ...p }));
+  const step = total / segments;
+  const out = [{ ...corners[0] }];
+  for ( let i = 1; i < corners.length; i++ ) {
+    const a = corners[i - 1];
+    const b = corners[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const n = Math.max(1, Math.round(len / step));
+    for ( let k = 1; k <= n; k++ ) out.push({ x: a.x + (((b.x - a.x) * k) / n), y: a.y + (((b.y - a.y) * k) / n) });
+  }
+  return out;
+}
+
+/** Length of a polyline. */
+export function polylineLength(points) {
+  let total = 0;
+  for ( let i = 1; i < points.length; i++ ) total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  return total;
+}
+
+/** The point a fraction t (0–1) of the way along a polyline. */
+export function pointAlong(points, t) {
+  const total = polylineLength(points);
+  let left = Math.min(1, Math.max(0, t)) * total;
+  for ( let i = 1; i < points.length; i++ ) {
+    const a = points[i - 1];
+    const b = points[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if ( (left <= len) && len ) return { x: a.x + (((b.x - a.x) * left) / len), y: a.y + (((b.y - a.y) * left) / len) };
+    left -= len;
+  }
+  return { ...points[points.length - 1] };
 }
 
 /** Points along the quadratic curve p1 → c → p2. */

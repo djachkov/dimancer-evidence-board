@@ -2,17 +2,15 @@ import { t } from "./constants.mjs";
 import { MIN_CARD_SIZE, MAX_CARD_SIZE, clampToRect, isEvidence } from "./cards.mjs";
 import { boardLinks, canEditBoard, canEditCard, canMoveCard } from "./permissions.mjs";
 import { MAIN_PIN, usedPins } from "./links.mjs";
-import { NOTE_COLORS, inkHit, localToView, viewScale } from "./stickers.mjs";
+import { inkHit, localToView, viewScale } from "./stickers.mjs";
+import { noteColors } from "./styles.mjs";
 import { drawStrokes } from "./ink.mjs";
 import { isPdfDocument, pdfPreview } from "./pdf-preview.mjs";
+import { cardPainter } from "./render/cards.mjs";
+import { drawPin } from "./render/pins.mjs";
 
 const SELECT_COLOR = 0xff9829;
-const PAPER = 0xf7f3ea;
-const PIN = 0xc0392b;
 const MERGE_COLOR = 0x37b24d;
-const DOC_PAPER = 0xfbfaf5;
-const DOC_EDGE = 0xd3ccba;
-const DOC_FONT = "Georgia, 'Times New Roman', serif";
 
 /**
  * The text of some HTML as it reads on paper: paragraphs and headings apart, list items bulleted,
@@ -52,9 +50,10 @@ export function htmlToPlain(html) {
 }
 
 /**
- * One card on the board: a photo in a paper frame with a push-pin (kind "image"), a text document
- * on A4 paper, its first page showing and the rest stacked and clipped behind it ("document"), a
- * sticky note with text and ink ("note"), or freehand ink drawn straight onto the board ("sketch").
+ * One card on the board: a photo in a paper frame with a pin (kind "image"), a text document, its
+ * first page showing and the rest stacked behind it ("document"), a note with text and ink
+ * ("note"), or freehand ink drawn straight onto the board ("sketch"). How the paper, pins and texts
+ * look is the board's card and pin style (render/cards-*.mjs, render/pins.mjs).
  * It isn't a PlaceableObject (players can't own embedded documents, see the README), but it uses
  * core's MouseInteractionManager, so clicking, dragging and double-clicking feel like Tiles do.
  *
@@ -77,6 +76,9 @@ export default class CardObject extends PIXI.Container {
     this.frame = this.addChild(new PIXI.Graphics());
     this.sprite = this.addChild(new PIXI.Sprite(PIXI.Texture.EMPTY));
     this.sprite.anchor.set(0.5);
+    // Over the picture: a style's scanlines.
+    this.overlay = this.addChild(new PIXI.TilingSprite(PIXI.Texture.EMPTY, 1, 1));
+    this.overlay.visible = false;
     this.placeholder = this.addChild(new PIXI.Graphics());
     this.noteText = this.addChild(new foundry.canvas.containers.PreciseText("", new PIXI.TextStyle({
       fontFamily: "Signika, sans-serif", fontSize: 24, fill: 0x2b2b2b, align: "center",
@@ -85,7 +87,7 @@ export default class CardObject extends PIXI.Container {
     this.noteText.anchor.set(0.5);
     // A text document: its title and the start of its first page, typeset on the paper.
     const docStyle = (bold = false) => new PIXI.TextStyle({
-      fontFamily: DOC_FONT, fontSize: 10, fill: bold ? 0x161616 : 0x2e2e2e, align: "left", fontWeight: bold ? "bold" : "normal",
+      fontFamily: "Georgia, serif", fontSize: 10, fill: bold ? 0x161616 : 0x2e2e2e, align: "left", fontWeight: bold ? "bold" : "normal",
       wordWrap: true, breakWords: true, wordWrapWidth: 200, dropShadow: false, stroke: 0, strokeThickness: 0
     });
     this.docTitle = this.addChild(new foundry.canvas.containers.PreciseText("", docStyle(true)));
@@ -101,6 +103,7 @@ export default class CardObject extends PIXI.Container {
     this.titleText.anchor.set(0.5);
     this.badgeText = this.addChild(new foundry.canvas.containers.PreciseText("", this.#textStyle(12, 0x8a6d3b)));
     this.badgeText.anchor.set(1, 0.5);
+    this.pinGlow = this.addChild(new PIXI.Graphics());
     this.pin = this.addChild(new PIXI.Graphics());
     this.outline = this.addChild(new PIXI.Graphics());
     this.handle = this.addChild(new PIXI.Graphics());
@@ -251,18 +254,27 @@ export default class CardObject extends PIXI.Container {
     this.zIndex = lifted ? Number.MAX_SAFE_INTEGER - 2 : this.card.sort;
     this.alpha = this.card.hidden ? 0.55 : 1;
 
+    const painter = this.painter;
+    this.#applyFonts(painter);
     this.shadow.clear();
     this.frame.clear();
     this.placeholder.clear();
     this.sprite.visible = false;
+    this.sprite.tint = 0xffffff;
+    this.overlay.visible = false;
     this.titleText.visible = false;
     this.noteText.visible = false;
     this.docTitle.visible = this.docBody.visible = this.docFoot.visible = false;
     this.docMask.clear();
     this.clip.clear();
-    if ( kind === "image" ) this.#drawPhoto(L);
-    else if ( kind === "document" ) this.#drawDocument(L);
-    else if ( kind === "note" ) this.#drawNote(L);
+    if ( kind === "image" ) painter.photo(this, L);
+    else if ( kind === "document" ) painter.document(this, L);
+    else if ( kind === "note" ) {
+      painter.note(this, L);
+      this.fitNoteText(w, h);
+      this.noteText.visible = !this.editing;
+      this.noteText.position.set(0, 0);
+    }
     this.#drawInk(L);
 
     // GM-facing state badges: on a photo's strip, or inside a sticker's bottom-right corner
@@ -296,8 +308,8 @@ export default class CardObject extends PIXI.Container {
       const tabX = left + fw - (pad || 6) - tabW;
       const tabY = top - (tabH * 0.85);
       const color = Number.parseInt(category.color.slice(1), 16);
-      this.tab.beginFill(0x000000, 0.2).drawRoundedRect(tabX + 2, tabY + 2, tabW, tabH + 6, tabH * 0.2).endFill()
-        .beginFill(color).drawRoundedRect(tabX, tabY, tabW, tabH + 6, tabH * 0.2).endFill();
+      painter.tab(this.tab, { x: tabX, y: tabY, w: tabW, h: tabH }, color);
+      this.tabText.style.fill = painter.tabText(color);
       this.tabText.position.set(tabX + (tabW / 2), tabY + (tabH * 0.85 / 2) + 1);
     }
 
@@ -306,6 +318,8 @@ export default class CardObject extends PIXI.Container {
     // A ring marks the pin under the pointer and a thread's snap target; a green one the two pins a
     // pin being dragged would merge.
     this.pin.clear();
+    this.pinGlow.clear();
+    const pinStyle = this.layer.style?.pins;
     const merge = this.dragging?.merge;
     const ringW = 2.5 / (canvas.stage?.scale.x || 1);
     for ( const id of this.shownPins() ) {
@@ -318,10 +332,7 @@ export default class CardObject extends PIXI.Container {
         this.pin.beginFill(color, 0.3).drawCircle(p.x, p.y, pinR * 1.7).endFill()
           .lineStyle(ringW, color, 1).drawCircle(p.x, p.y, pinR * 1.7).lineStyle(0);
       }
-      this.pin
-        .beginFill(0x000000, 0.25).drawCircle(p.x + (pinR * 0.35), p.y + (pinR * 0.35), pinR).endFill()
-        .beginFill(PIN).drawCircle(p.x, p.y, pinR).endFill()
-        .beginFill(0xffffff, 0.45).drawCircle(p.x - (pinR * 0.35), p.y - (pinR * 0.35), pinR * 0.3).endFill();
+      drawPin(this.pin, this.pinGlow, pinStyle, p, pinR);
     }
 
     // Hover / selection outline and the resize handle
@@ -356,100 +367,42 @@ export default class CardObject extends PIXI.Container {
     this.layer.queueThreads();
   }
 
-  /** A photo in a polaroid frame, with its title on the bottom strip. */
-  #drawPhoto({ w, h, pad, strip, left, top, fw, fh }) {
-    // Shadow: two offset translucent rects read as a soft drop shadow without a filter per card.
-    this.shadow
-      .beginFill(0x000000, 0.18).drawRect(left + 3, top + 5, fw + 2, fh + 3).endFill()
-      .beginFill(0x000000, 0.18).drawRect(left + 6, top + 9, fw, fh).endFill();
-
-    // Paper
-    this.frame.beginFill(PAPER).lineStyle(1, 0xd8d0bf, 1).drawRect(left, top, fw, fh).endFill();
-
-    // Image (or a grey placeholder when it couldn't be loaded)
-    this.sprite.visible = !!this.hasTexture;
-    this.sprite.width = w;
-    this.sprite.height = h;
-    if ( !this.hasTexture ) {
-      this.placeholder.beginFill(0x8c8c8c).drawRect(-w / 2, -h / 2, w, h).endFill()
-        .lineStyle(Math.max(2, w / 60), 0xbdbdbd)
-        .moveTo(-w / 2, -h / 2).lineTo(w / 2, h / 2).moveTo(w / 2, -h / 2).lineTo(-w / 2, h / 2);
-    }
-
-    // Title on the bottom strip, shrunk to fit
-    const stripY = (h / 2) + (strip / 2) + (pad / 2);
-    const fontSize = Math.round(strip * 0.45);
-    if ( this.titleText.style.fontSize !== fontSize ) this.titleText.style.fontSize = fontSize;
-    this.titleText.visible = true;
-    this.titleText.text = this.card.title;
-    this.titleText.position.set(0, stripY);
-    this.titleText.scale.set(1);
-    const maxTitle = fw - (2 * pad);
-    if ( this.titleText.width > maxTitle ) this.titleText.scale.set(maxTitle / this.titleText.width);
+  /** The painter of the board's card style. */
+  get painter() {
+    return cardPainter(this.layer.style?.cards);
   }
 
-  /**
-   * A sheet of A4 with the document's title and the start of its first page. More pages show as
-   * sheets peeking out askew underneath, held together with a paper clip.
-   */
-  #drawDocument({ w, h, left, top, fw, fh }) {
-    const pdf = isPdfDocument(this.card);
-    const count = Math.max(1, pdf ? this.pdfPages : this.card.docPages.length);
-    this.shadow
-      .beginFill(0x000000, 0.18).drawRect(left + 3, top + 5, fw + 2, fh + 3).endFill()
-      .beginFill(0x000000, 0.14).drawRect(left + 6, top + 9, fw, fh).endFill();
+  /** The style whose fonts the texts were last set up for. */
+  #fontsFor = null;
 
-    // The sheets underneath (up to two drawn), each turned a little around the centre.
-    const sheet = (degrees, dx, dy, tint) => {
-      const a = Math.toRadians(degrees);
-      const cos = Math.cos(a);
-      const sin = Math.sin(a);
-      const pts = [[left, top], [left + fw, top], [left + fw, top + fh], [left, top + fh]]
-        .flatMap(([x, y]) => [(x * cos) - (y * sin) + dx, (x * sin) + (y * cos) + dy]);
-      this.frame.lineStyle(1, DOC_EDGE, 1).beginFill(tint).drawPolygon(pts).endFill();
+  /** Fonts and colours of the texts for a card style (only when the style changes). */
+  #applyFonts(painter) {
+    if ( this.#fontsFor === painter ) return;
+    this.#fontsFor = painter;
+    const { fonts, colors } = painter;
+    const set = (text, family, fill) => {
+      text.style.fontFamily = family;
+      if ( fill !== undefined ) text.style.fill = fill;
     };
-    const under = [[2.4, w * 0.02, h * 0.012, 0xf1eee4], [-1.8, -w * 0.015, h * 0.02, 0xe9e5d9]];
-    for ( let i = Math.min(count - 1, under.length) - 1; i >= 0; i-- ) sheet(...under[i]);
-
-    // The top sheet
-    this.frame.lineStyle(1, DOC_EDGE, 1).beginFill(DOC_PAPER).drawRect(left, top, fw, fh).endFill().lineStyle(0);
-
-    const { pad, body } = this.#fitDocText(w, h, count);
-    if ( pdf && this.hasTexture ) {
-      // The PDF's own first page, fitted onto the sheet: it is the paper.
-      const tex = this.sprite.texture;
-      const k = Math.min(fw / tex.width, fh / tex.height);
-      this.sprite.visible = true;
-      this.sprite.width = tex.width * k;
-      this.sprite.height = tex.height * k;
-    } else {
-      // Typeset: a written document's title and first page (a PDF not read yet shows its title).
-      this.docTitle.visible = true;
-      this.docTitle.position.set(left + pad, top + pad);
-      this.docBody.visible = !pdf;
-      this.docBody.position.set(left + pad, top + pad + this.docTitle.height + (body * 0.6));
-      const bottom = top + fh - pad - ((count > 1) ? body * 1.6 : 0);
-      this.docMask.beginFill(0xffffff).drawRect(left + pad, top + pad, fw - (2 * pad), Math.max(0, bottom - top - pad)).endFill();
-    }
-    if ( count < 2 ) return;
-    // A written document counts its pages at the foot (a PDF's own page shows there instead).
-    if ( !pdf ) {
-      this.docFoot.visible = true;
-      this.docFoot.position.set(0, top + fh - (pad * 0.6));
-    }
-    // The paper clip over the top-left corner
-    const cw = Math.max(6, w * 0.075);
-    const ch = Math.max(14, h * 0.13);
-    const cx = left + (fw * 0.16);
-    const cy = top - (ch * 0.3);
-    const lw = Math.max(1.5, w * 0.012);
-    this.clip.lineStyle(lw, 0x000000, 0.2).drawRoundedRect(cx + 1.5, cy + 1.5, cw, ch, cw / 2)
-      .lineStyle(lw, 0x9ea3a8, 1).drawRoundedRect(cx, cy, cw, ch, cw / 2)
-      .drawRoundedRect(cx + (cw * 0.22), cy + (ch * 0.18), cw * 0.56, ch * 0.62, cw * 0.28);
+    set(this.titleText, fonts.title, colors.title);
+    set(this.badgeText, fonts.badge, colors.badge);
+    set(this.tabText, fonts.tab);
+    set(this.noteText, fonts.note, colors.note);
+    set(this.docTitle, fonts.docTitle, colors.docTitle);
+    set(this.docBody, fonts.docBody, colors.docBody);
+    set(this.docFoot, fonts.docFoot, colors.docFoot);
+    // Cached layouts were measured in the old fonts.
+    this.#noteKey = this.#docKey = null;
   }
 
-  /** Lay out the document's text for a sheet of this size (cached until the text or size changes). */
-  #fitDocText(w, h, count) {
+  /** How the note editor should look over this note: {paper, ink, font} as CSS values. */
+  noteEditorLook() {
+    const color = this.card.color ?? noteColors(this.layer.style?.cards)[0].color;
+    return this.painter.noteEditor(color);
+  }
+
+  /** Lay out the document's text for a sheet of this size (cached until the text, size or style changes). */
+  fitDocText(w, h, count) {
     const pad = Math.max(4, Math.round(w * 0.1));
     const body = Math.max(3, Math.round(w * 0.042 * 10) / 10);
     const first = this.card.docPages[0] ?? "";
@@ -476,28 +429,18 @@ export default class CardObject extends PIXI.Container {
     return { pad, body };
   }
 
-  /** A square of coloured paper with the note's text, shrunk until it fits. */
-  #drawNote({ w, h, left, top, fw, fh }) {
-    const color = Number.parseInt((this.card.color ?? NOTE_COLORS[0].color).slice(1), 16);
-    // The bottom edge curls off the board a little, so the shadow is deeper there.
-    this.shadow.beginFill(0x000000, 0.22)
-      .drawPolygon([left + 3, top + 5, left + fw + 3, top + 5, left + fw + 1, top + fh + 8, left + 5, top + fh + 3]).endFill();
-    this.frame.beginFill(color).drawRect(left, top, fw, fh).endFill()
-      // The adhesive strip along the top reads slightly darker.
-      .beginFill(0x000000, 0.045).drawRect(left, top, fw, fh * 0.13).endFill();
-    this.#fitNoteText(w, h);
-    this.noteText.visible = !this.editing;
-    this.noteText.position.set(0, 0);
-  }
-
-  #fitNoteText(w, h) {
+  /** Fit the note's text to its paper, shrinking it until it fits (cached). */
+  fitNoteText(w, h) {
     const text = this.card.text;
     const empty = !text.trim();
-    const key = `${text}|${w}|${h}|${empty && this.editable}`;
+    const painter = this.painter;
+    const color = this.card.color ?? noteColors(this.layer.style?.cards)[0].color;
+    const key = `${text}|${w}|${h}|${empty && this.editable}|${color}`;
     if ( key === this.#noteKey ) return;
     this.#noteKey = key;
     const pad = Math.max(6, Math.round(w * 0.08));
     const style = this.noteText.style;
+    style.fill = painter.noteText ? painter.noteText(Number.parseInt(color.slice(1), 16)) : painter.colors.note;
     style.wordWrapWidth = Math.max(10, w - (2 * pad));
     style.fontStyle = empty ? "italic" : "normal";
     this.noteText.text = empty ? (this.editable ? t("Sticker.EmptyNote") : "") : text;

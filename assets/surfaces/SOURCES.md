@@ -9,5 +9,7 @@ Seamless 1K colour maps from [ambientCG](https://ambientcg.com), licensed
 | `cork-002.webp` | [Cork 002](https://ambientcg.com/a/Cork002) |
 | `cork-004.webp` | [Cork 004](https://ambientcg.com/a/Cork004) |
 | `kraft.webp` | [Paper 006](https://ambientcg.com/a/Paper006) |
+| `planks.webp` | [Planks 039](https://ambientcg.com/a/Planks039), 2K, graded darker and warmer |
 
-Whiteboard, chalkboard and felt are generated in code (`scripts/surface-presets.mjs`).
+Whiteboard, chalkboard, felt, the cyber grid and the parchment of quest-board cards are generated in
+code (`scripts/surface-presets.mjs`).

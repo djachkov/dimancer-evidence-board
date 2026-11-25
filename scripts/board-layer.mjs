@@ -4,7 +4,7 @@ import {
 } from "./cards.mjs";
 import { isBoard, boardCards, boardLinks, boardSettings, getCard, canEditBoard, canEditCard, canMoveCard, canSeeCard } from "./permissions.mjs";
 import {
-  MAIN_PIN, THREAD_COLORS, linkBetween, linkCreate, linkDelete, linkList, linkUpdate, linksOf, newLink, orphanedPins,
+  MAIN_PIN, linkBetween, linkCreate, linkDelete, linkList, linkUpdate, linksOf, newLink, orphanedPins,
   orphanPinsUpdate, pinOf, visibleLinks
 } from "./links.mjs";
 import ThreadObject from "./thread-object.mjs";
@@ -17,10 +17,14 @@ import { closeMenu, menuItems, showMenu } from "./menu.mjs";
 import { focusCardForEveryone } from "./focus.mjs";
 import { categoriesOf, openCategoryPicker } from "./organize-actions.mjs";
 import {
-  INK_COLORS, NOTE_COLORS, NOTE_MAX_TEXT, cardLabel, noteSizeFor, localToView, newNote, newSketch, simplifyPoints,
+  NOTE_MAX_TEXT, cardLabel, noteSizeFor, localToView, newNote, newSketch, simplifyPoints,
   strokeAddUpdate, strokeDeleteUpdate, viewScale
 } from "./stickers.mjs";
 import { drawStroke } from "./ink.mjs";
+import { inkColors, noteColors, threadColors } from "./styles.mjs";
+import { boardStyle } from "./surfaces.mjs";
+import { threadPainter } from "./render/threads.mjs";
+import { setAnimation } from "./render/animation.mjs";
 import { closePenBar, penPrefs, showPenBar } from "./pen-bar.mjs";
 import { closeNoteEditor, editNote } from "./note-editor.mjs";
 import {
@@ -58,6 +62,13 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   connecting = null;
 
   #threadsQueued = false;
+
+  /**
+   * The board's look: card, pin and thread styles and decorations (surfaces.mjs boardStyle),
+   * refreshed with the cards.
+   * @type {{cards: string, pins: string, threads: string, decor: object}|null}
+   */
+  style = null;
 
   #remoteTimers = new Map();
 
@@ -178,6 +189,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     this.threads.clear();
     this.selectedId = null;
     this.connecting = null;
+    this.style = null;   // refreshCards sets it, and starts any animation
     if ( !this.isBoard ) return;
     this.threadLayer = this.addChild(new PIXI.Container());
     this.threadLayer.zIndex = Number.MAX_SAFE_INTEGER - 1;
@@ -195,6 +207,8 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     this.#session = null;
     for ( const timer of this.#remoteTimers.values() ) clearTimeout(timer);
     this.#remoteTimers.clear();
+    setAnimation("board", null);
+    this.style = null;
     this.cards.clear();
     this.threads.clear();
     this.threadLayer = null;
@@ -209,6 +223,9 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   async refreshCards() {
     if ( !this.isBoard ) return;
     this.categories = new Map(categoriesOf(this.scene).map(c => [c.id, c]));
+    const style = boardStyle(this.scene);
+    const restyled = !foundry.utils.equals(style, this.style);
+    this.style = style;
     const wanted = new Map(cardList(boardCards(this.scene)).filter(c => canSeeCard(c)).map(c => [c.id, c]));
     for ( const [id, obj] of this.cards ) {
       if ( wanted.has(id) ) continue;
@@ -232,6 +249,33 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     // Permissions can change without the card changing (board lock, ownership), so refresh all.
     for ( const obj of this.cards.values() ) obj.refresh();
     this.refreshThreads();
+    if ( restyled ) {
+      this.#syncAnimation();
+      this.syncTool();   // the pen bar's colours follow the card style
+    }
+  }
+
+  /* -------------------------------------------- */
+  /*  Animation                                   */
+  /* -------------------------------------------- */
+
+  /** Data packets and pulsing node pins, while the board has Animate on and a style that moves. */
+  #syncAnimation() {
+    const s = this.style;
+    const moving = s?.decor.animate && ((s.threads === "dataline") || (s.pins === "node"));
+    if ( moving ) return setAnimation("board", t => this.#animate(t));
+    setAnimation("board", null);
+    for ( const thread of this.threads.values() ) thread.stopAnimation();
+    for ( const card of this.cards.values() ) if ( !card.destroyed ) card.pinGlow.alpha = 1;
+  }
+
+  #animate(t) {
+    if ( !this.isBoard ) return;
+    if ( this.style.threads === "dataline" ) for ( const thread of this.threads.values() ) thread.animate(t);
+    if ( this.style.pins === "node" ) {
+      const pulse = 0.65 + (0.35 * Math.sin(t * 3));
+      for ( const card of this.cards.values() ) if ( !card.destroyed ) card.pinGlow.alpha = pulse;
+    }
   }
 
   /* -------------------------------------------- */
@@ -293,7 +337,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     if ( !this.isBoard || !this.active ) return closePenBar();
     const tool = this.tool;
     this.interactiveChildren = !this.isStickerTool;
-    if ( this.isStickerTool && canEditBoard(this.scene) ) showPenBar(tool, { onUndo: () => this.undoStroke() });
+    if ( this.isStickerTool && canEditBoard(this.scene) ) showPenBar(tool, { onUndo: () => this.undoStroke(), style: this.style?.cards });
     else closePenBar();
     if ( tool !== "draw" ) this.#session = null;
   }
@@ -348,10 +392,16 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     const pin = (target && (target.id !== c.fromId)) ? target.pinAt(point) : null;
     const end = pin ? target.pinPoint(pin) : point;
     this.#highlightPin(pin ? target : null, pin);
-    c.rubber.clear()
-      .lineStyle({ width: 4, color: 0xc0392b, alpha: 0.75, cap: PIXI.LINE_CAP.ROUND })
-      .moveTo(p.x, p.y).lineTo(end.x, end.y)
-      .lineStyle(0).beginFill(0xc0392b, 0.9).drawCircle(end.x, end.y, 6).endFill();
+    // The thread to be, in the board's thread style and its default colour.
+    const k = Math.max(1, 0.55 / (canvas.stage?.scale.x || 1));
+    c.rubber.clear();
+    threadPainter(this.style?.threads).paint(c.rubber, p, end, { color: this.#newThreadColor, k, hovered: false });
+    c.rubber.alpha = 0.75;
+  }
+
+  /** New threads take the first colour of the board's thread style. */
+  get #newThreadColor() {
+    return threadColors(this.style?.threads)[0].color;
   }
 
   /** The card whose pin is ringed as a thread's snap target. */
@@ -412,7 +462,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     };
     const link = newLink({
       id: foundry.utils.randomID(), from, to, fromPin: pinFor(from, fromAnchor), toPin: pinFor(to, toAnchor),
-      author: game.user.id, created: Date.now()
+      color: this.#newThreadColor, author: game.user.id, created: Date.now()
     });
     if ( link ) await scene.update({ ...update, ...linkCreate(link) });
     return link;
@@ -657,7 +707,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   #beginStroke(point) {
     this.#cancelStroke();
     if ( !point || !canEditBoard(this.scene) ) return;
-    const { ink, width } = penPrefs();
+    const { ink, width } = penPrefs(this.style?.cards);
     const preview = this.addChild(new PIXI.Graphics());
     preview.eventMode = "none";
     preview.zIndex = Number.MAX_SAFE_INTEGER;
@@ -753,7 +803,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     text = text.slice(0, NOTE_MAX_TEXT);
     const card = newNote({
       id: foundry.utils.randomID(), x: point.x, y: point.y, text, size: noteSizeFor(text),
-      color: penPrefs().paper, cards: boardCards(scene),
+      color: penPrefs(this.style?.cards).paper, cards: boardCards(scene),
       rotation: Math.round(((Math.random() * 4) - 2) * 10) / 10,
       author: game.user.id, created: Date.now()
     });
@@ -998,7 +1048,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     let swatches = "";
     if ( editable && !isEvidence(card) ) {
       const sketch = kind === "sketch";
-      const colors = sketch ? INK_COLORS : NOTE_COLORS;
+      const colors = sketch ? inkColors(this.style?.cards) : noteColors(this.style?.cards);
       const inks = new Set(Object.values(card.strokes).map(s => s.color));
       swatches = `<div class="dimancer-board-swatches">${colors.map(c => {
         const active = sketch ? ((inks.size === 1) && inks.has(c.color)) : (c.color === card.color);
@@ -1025,7 +1075,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     if ( !canEditBoard(this.scene) ) return;
     this.cancelConnect();
     const link = obj.link;
-    const swatches = THREAD_COLORS.map(c => `<button type="button" class="swatch${c.color === link.color ? " active" : ""}"
+    const swatches = threadColors(this.style?.threads).map(c => `<button type="button" class="swatch${c.color === link.color ? " active" : ""}"
       data-action="color" data-color="${c.color}" style="--swatch: ${c.color}"
       aria-label="${t(`Thread.Color.${c.key}`)}" data-tooltip="${t(`Thread.Color.${c.key}`)}"></button>`).join("");
     const ne = event.nativeEvent ?? event;

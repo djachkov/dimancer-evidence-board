@@ -20,6 +20,8 @@ const ASSETS = "modules/dimancer_board/assets/surfaces";
  * @property {string} [src]            Seamless tile (image presets)
  * @property {number} [size]           Tile size in pixels (procedural presets)
  * @property {(size: number, seed: number) => Uint8ClampedArray} [generate]  RGBA tile (procedural)
+ * @property {"classic"|"medieval"|"cyberpunk"} theme   The card, pin and thread styles a board on it starts with
+ * @property {"bevel"|"timber"|"neon"} frameStyle       How its frame is drawn (and which decorations it offers)
  */
 
 /* -------------------------------------------- */
@@ -314,6 +316,89 @@ function felt(base) {
   };
 }
 
+/**
+ * A dark control-room panel: a fine grid with a coarser one over it, faint circuit traces running
+ * along the grid (straight and at 45°) ending in vias, and a little unevenness.
+ */
+function cyberGrid(size, seed) {
+  const rng = mulberry32(seed);
+  const px = paper(size, "#0b1119");
+  shade(px, fbm(size, rng, { cells: 3, octaves: 4 }), 5);
+  shade(px, fbm(size, rng, { cells: 32, octaves: 2 }), 1.5);
+
+  // Grid lines sit at the start of each cell, so the pattern wraps exactly; shifted half a fine
+  // cell so the tile's own edge falls between lines.
+  const step = size / 32;
+  const o = Math.floor(step / 2);
+  const onLine = (v, cells) => {
+    const u = mod(v - o, size);
+    return Math.floor((u * cells) / size) !== Math.floor((mod(u - 1, size) * cells) / size);
+  };
+  const minor = new Float32Array(size * size);
+  const major = new Float32Array(size * size);
+  for ( let y = 0; y < size; y++ ) {
+    const minorRow = onLine(y, 32);
+    const majorRow = onLine(y, 8);
+    for ( let x = 0; x < size; x++ ) {
+      const i = (y * size) + x;
+      if ( minorRow || onLine(x, 32) ) minor[i] = 1;
+      if ( majorRow || onLine(x, 8) ) major[i] = 1;
+    }
+  }
+  paint(px, minor, "#1ec8ff", 0.045);
+  paint(px, major, "#1ec8ff", 0.1);
+
+  // Traces: walks along the fine grid that turn by 45° now and then, with a via at each end.
+  const traces = new Float32Array(size * size);
+  const vias = new Float32Array(size * size);
+  const dirs = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  for ( let n = 0; n < 14; n++ ) {
+    let x = (Math.floor(rng() * 32) * step) + o;
+    let y = (Math.floor(rng() * 32) * step) + o;
+    let d = Math.floor(rng() * 4) * 2;   // start straight
+    blob(vias, size, x, y, Math.max(0.8, step * 0.18));
+    const length = 3 + Math.floor(rng() * 9);
+    for ( let k = 0; k < length; k++ ) {
+      if ( (k > 0) && (rng() < 0.3) ) d = (d + (rng() < 0.5 ? 1 : 7)) % 8;
+      const [dx, dy] = dirs[d];
+      const len = step * Math.hypot(dx, dy);
+      line(traces, size, x, y, Math.atan2(dy, dx), len + 0.5, 1);
+      x += dx * step;
+      y += dy * step;
+    }
+    blob(vias, size, x, y, Math.max(0.8, step * 0.18));
+  }
+  paint(px, traces, "#25e0ff", 0.12);
+  paint(px, vias, "#25e0ff", 0.3);
+  grain(px, rng, 2);
+  return toRGBA(px);
+}
+
+/**
+ * Old parchment for cards on a quest board (not a board surface): mottled cream with darker
+ * blotches where it has aged, a few fibres, and grain.
+ */
+export function parchment(size, seed) {
+  const rng = mulberry32(seed);
+  const px = paper(size, "#e6d3a8");
+  shade(px, fbm(size, rng, { cells: 3, octaves: 5, gain: 0.55 }), 16);
+  shade(px, fbm(size, rng, { cells: 24, octaves: 2 }), 4);
+  const field = fbm(size, rng, { cells: 4, octaves: 4, gain: 0.6 });
+  const stains = new Float32Array(size * size);
+  for ( let i = 0; i < stains.length; i++ ) stains[i] = Math.min(1, Math.max(0, field[i] - 0.12) * 2.4);
+  paint(px, stains, "#a4773d", 0.22);
+  const light = new Float32Array(size * size);
+  const dark = new Float32Array(size * size);
+  const count = Math.round(size * size * 0.003);
+  for ( let i = 0; i < count; i++ ) {
+    line(rng() < 0.5 ? light : dark, size, rng() * size, rng() * size, rng() * Math.PI, size * (0.01 + (rng() * 0.03)), 0.4 + (rng() * 0.6));
+  }
+  paint(px, light, "#fff6dc", 0.2);
+  paint(px, dark, "#8a6a3a", 0.12);
+  grain(px, rng, 3);
+  return toRGBA(px);
+}
+
 /* -------------------------------------------- */
 /*  Registry                                    */
 /* -------------------------------------------- */
@@ -328,8 +413,16 @@ export const SURFACES = Object.freeze([
   { id: "felt-green", label: "FeltGreen", kind: "procedural", color: "#2f5a3a", frame: "#4a3020", size: 512, generate: felt("#2f5a3a") },
   { id: "felt-burgundy", label: "FeltBurgundy", kind: "procedural", color: "#5a2430", frame: "#4a3020", size: 512, generate: felt("#5a2430") },
   { id: "kraft", label: "Kraft", kind: "image", color: "#a58768", frame: "#6b4a2b", src: `${ASSETS}/kraft.webp` },
+  {
+    id: "planks", label: "Planks", kind: "image", color: "#966634", frame: "#5a3b22", src: `${ASSETS}/planks.webp`, tile: 2048,
+    theme: "medieval", frameStyle: "timber"
+  },
+  {
+    id: "cyber-grid", label: "CyberGrid", kind: "procedural", color: "#0d131c", frame: "#00e5ff", size: 1024, generate: cyberGrid,
+    theme: "cyberpunk", frameStyle: "neon"
+  },
   { id: "plain", label: "Plain", kind: "color", color: "#9c7650" }
-].map(p => Object.freeze({ tile: p.size ?? 1024, ...p })));
+].map(p => Object.freeze({ tile: p.size ?? 1024, theme: "classic", frameStyle: "bevel", ...p })));
 
 const BY_ID = new Map(SURFACES.map(p => [p.id, p]));
 

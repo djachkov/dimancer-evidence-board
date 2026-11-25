@@ -1,22 +1,39 @@
 import { MODULE_ID, t } from "./constants.mjs";
 import { isBoard } from "./permissions.mjs";
-import { SURFACES, getSurface, normalizeSurface, randomSeed, frameColor, frameWidth, shadeColor } from "./surface-presets.mjs";
+import { SURFACES, getSurface, normalizeSurface, randomSeed, frameColor, frameWidth } from "./surface-presets.mjs";
+import { normalizeDecor, normalizeStyle } from "./styles.mjs";
+import { makeRepeating, rgbaCanvas } from "./render/textures.mjs";
+import { drawDecorations, drawFrame } from "./render/decor.mjs";
+import { setAnimation } from "./render/animation.mjs";
 
 /**
  * The board on the canvas: a framed panel at the very bottom of the primary group. The panel is one
  * repeating tile (an image, or a procedurally generated one) drawn as a single TilingSprite, or a
- * flat colour; the frame sits just outside the scene rectangle and casts a soft shadow onto the
- * padding, whose colour is the Level's own background colour (the "surrounding colour").
+ * flat colour; the frame (render/decor.mjs, in the surface's frame style) sits just outside the
+ * scene rectangle and casts a soft shadow onto the padding, whose colour is the Level's own
+ * background colour (the "surrounding colour"). A quest-board or cyberpunk frame can carry
+ * decorations in the padding (a sign, a roof, lanterns; a HUD header, corner brackets).
  *
  * It sorts below the Level's background mesh, so a background image set in the Scene configuration
  * covers the panel (inside the frame), and Foundry's background stays the way to use a custom image.
  */
 
 const FLAG_SURFACE = `flags.${MODULE_ID}.board.surface`;
+const FLAG_DECOR = `flags.${MODULE_ID}.board.decor`;
 
 /** The normalised surface of a scene: {id, seed, color}, id null for none. */
 export function surfaceOf(scene) {
   return normalizeSurface(scene?.flags?.[MODULE_ID]?.board?.surface);
+}
+
+/**
+ * How a board's cards, pins and threads look, and its decorations. A board that never chose a
+ * style takes its surface's theme.
+ * @returns {{cards: string, pins: string, threads: string, decor: object}}
+ */
+export function boardStyle(scene) {
+  const board = scene?.flags?.[MODULE_ID]?.board;
+  return { ...normalizeStyle(board?.style, surfaceOf(scene).id), decor: normalizeDecor(board?.decor) };
 }
 
 /* -------------------------------------------- */
@@ -27,23 +44,6 @@ export function surfaceOf(scene) {
 const textures = new Map();
 /** @type {Map<string, string>} Thumbnail data URLs for procedural presets. */
 const thumbs = new Map();
-
-/** RGBA bytes → a canvas element. */
-function rgbaCanvas(data, size) {
-  const el = document.createElement("canvas");
-  el.width = el.height = size;
-  el.getContext("2d").putImageData(new ImageData(data, size, size), 0, 0);
-  return el;
-}
-
-/** Make a texture tile: repeat, with mipmaps so a zoomed-out board doesn't shimmer. */
-function makeRepeating(texture) {
-  const base = texture?.baseTexture;
-  if ( !base ) return texture;
-  base.wrapMode = PIXI.WRAP_MODES.REPEAT;
-  base.mipmap = PIXI.MIPMAP_MODES.ON;
-  return texture;
-}
 
 /**
  * The tile texture of a textured surface (not a plain colour).
@@ -84,7 +84,9 @@ export function surfaceChoices({ thumbnails = false } = {}) {
     color: p.color,
     frame: p.frame ?? "",
     tile: p.tile,
-    thumb: thumbnails ? surfaceThumb(p) : null
+    thumb: thumbnails ? surfaceThumb(p) : null,
+    theme: p.theme,
+    frameStyle: p.frameStyle
   }));
 }
 
@@ -99,8 +101,11 @@ let drawToken = 0;
 
 function removePanel() {
   drawToken++;
+  setAnimation("surface", null);
   if ( panel && !panel.destroyed ) {
     panel.parent?.removeChild(panel);
+    // Texts own their textures; everything else here is shared and cached.
+    for ( const text of panel.texts ?? [] ) if ( !text.destroyed ) text.destroy(true);
     // Textures are cached and shared, so keep them.
     panel.destroy({ children: true, texture: false, baseTexture: false });
   }
@@ -108,42 +113,6 @@ function removePanel() {
 }
 
 const toNumber = hex => Number.parseInt(hex.slice(1), 16);
-
-/**
- * The frame and its shadows, around (not over) the rectangle r.
- * @param {PIXI.Rectangle} r
- * @param {string} color
- */
-function drawFrame(r, color) {
-  const fw = frameWidth(r.width, r.height);
-  const g = new PIXI.Graphics();
-
-  // Drop shadow onto the surround: stacked translucent rings, nudged down.
-  const spread = fw * 1.4;
-  const steps = 10;
-  for ( let i = steps; i >= 1; i-- ) {
-    const d = fw + (spread * (i / steps));
-    g.beginFill(0x000000, 0.045)
-      .drawRoundedRect(r.x - d, r.y - d + (fw * 0.35), r.width + (d * 2), r.height + (d * 2), d * 0.5)
-      .endFill();
-  }
-
-  // The frame: a face with a lit outer edge and a shaded inner lip.
-  const outer = new PIXI.Rectangle(r.x - fw, r.y - fw, r.width + (fw * 2), r.height + (fw * 2));
-  const ring = (rect, inset, hex) => {
-    g.beginFill(toNumber(hex))
-      .drawRect(rect.x + inset, rect.y + inset, rect.width - (inset * 2), rect.height - (inset * 2))
-      .beginHole()
-      .drawRect(r.x, r.y, r.width, r.height)
-      .endHole()
-      .endFill();
-  };
-  ring(outer, 0, shadeColor(color, -0.35));
-  ring(outer, Math.max(1, fw * 0.06), shadeColor(color, 0.25));
-  ring(outer, Math.max(2, fw * 0.16), color);
-  ring(outer, fw * 0.78, shadeColor(color, -0.25));
-  return g;
-}
 
 /** A thin shadow just inside the frame, so the panel sits below it. */
 function drawInnerShadow(r) {
@@ -173,10 +142,12 @@ export async function drawSurface() {
   if ( (preset.kind !== "color") && !texture ) return;
 
   const r = canvas.dimensions.sceneRect;
+  const full = canvas.dimensions.rect;
+  const frame = frameColor(surface);
   const container = new PIXI.Container();
   container.name = `${MODULE_ID}.surface`;
   container.eventMode = "none";
-  container.addChild(drawFrame(r, frameColor(surface)));
+  container.addChild(drawFrame(r, frame, preset.frameStyle, { texture }));
 
   let face;
   if ( texture ) face = new PIXI.TilingSprite(texture, r.width, r.height);
@@ -188,6 +159,19 @@ export async function drawSurface() {
   }
   face.position.set(r.x, r.y);
   container.addChild(face, drawInnerShadow(r));
+
+  // Decorations go in the padding around the frame, over the panel's edge.
+  const { decor } = boardStyle(scene);
+  const deco = drawDecorations(r, {
+    frameStyle: preset.frameStyle, color: frame, decor, texture,
+    text: decor.signText || scene.name,
+    room: { top: r.y - full.y, left: r.x - full.x }
+  });
+  if ( deco ) {
+    container.addChild(deco.container);
+    container.texts = deco.container.texts;
+    if ( deco.animate ) setAnimation("surface", deco.animate);
+  }
 
   // Below everything, the Level background included; the same trick as core's scene padding.
   container.elevation = -Infinity;
@@ -217,7 +201,11 @@ function onPreUpdateScene(scene, changes) {
 }
 
 function onUpdateScene(scene, changed) {
-  if ( (scene === canvas.scene) && foundry.utils.hasProperty(changed, FLAG_SURFACE) ) drawSurface();
+  if ( scene !== canvas.scene ) return;
+  const has = path => foundry.utils.hasProperty(changed, path);
+  // The sign and HUD show the board's name unless they have their own text.
+  const renamed = ("name" in changed) && !boardStyle(scene).decor.signText;
+  if ( has(FLAG_SURFACE) || has(FLAG_DECOR) || renamed ) drawSurface();
 }
 
 export function registerSurfaceHooks() {

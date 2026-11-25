@@ -1,0 +1,46 @@
+<div class="mb-style-fields">
+  <div class="form-group">
+    <label>{{localize "DIMANCER_BOARD.Style.CardsLabel"}}</label>
+    <div class="form-fields">
+      <select name="{{prefix}}style.cards">
+        {{#each cards}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label>{{localize "DIMANCER_BOARD.Style.PinsLabel"}}</label>
+    <div class="form-fields">
+      <select name="{{prefix}}style.pins">
+        {{#each pins}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label>{{localize "DIMANCER_BOARD.Style.ThreadsLabel"}}</label>
+    <div class="form-fields">
+      <select name="{{prefix}}style.threads">
+        {{#each threads}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
+  </div>
+  <div class="form-group mb-decor">
+    <label>{{localize "DIMANCER_BOARD.Decor.Label"}}</label>
+    <div class="form-fields mb-decor-options">
+      {{#each decorations}}
+      <label class="checkbox" data-frame="{{frame}}">
+        <input type="checkbox" name="{{../prefix}}decor.{{id}}" {{checked checked}}> {{label}}
+      </label>
+      {{/each}}
+      <label class="checkbox mb-decor-animate">
+        <input type="checkbox" name="{{prefix}}decor.animate" {{checked animate}}> {{localize "DIMANCER_BOARD.Decor.animate"}}
+      </label>
+    </div>
+  </div>
+  <div class="form-group mb-decor-text" data-frame="timber neon">
+    <label>{{localize "DIMANCER_BOARD.Decor.Text"}}</label>
+    <div class="form-fields">
+      <input type="text" name="{{prefix}}decor.signText" value="{{signText}}" maxlength="{{signMax}}" placeholder="{{localize "DIMANCER_BOARD.Decor.TextPlaceholder"}}">
+    </div>
+  </div>
+  <p class="hint mb-decor-hint">{{localize "DIMANCER_BOARD.Decor.Hint"}}</p>
+</div>

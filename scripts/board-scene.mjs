@@ -1,7 +1,8 @@
 import { MODULE_ID, BOARD_DEFAULTS, TEMPLATES, t } from "./constants.mjs";
 import { isBoard, boardSettings } from "./permissions.mjs";
 import { DEFAULT_SURFACE, defaultFrameColor, getSurface, surfaceFlag, validColor } from "./surface-presets.mjs";
-import { registerSurfaceHooks, surfaceChoices, surfaceOf } from "./surfaces.mjs";
+import { boardStyle, registerSurfaceHooks, surfaceChoices, surfaceOf } from "./surfaces.mjs";
+import { bindStyleFields, styleFieldsData } from "./style-fields.mjs";
 import { promptNewBoard, registerCreateDefaults, setPlaceholderColor } from "./create-board-dialog.mjs";
 import { getEvidenceJournal, openEvidenceJournal } from "./journal-store.mjs";
 
@@ -17,11 +18,16 @@ const OWNER = () => CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
  * @param {string} [options.surround]      The colour around the board (the Level's background colour)
  * @param {number} [options.width]
  * @param {number} [options.height]
+ * @param {object} [options.style]         Card, pin and thread styles (absent: the surface's theme)
+ * @param {object} [options.decor]         Decorations
  */
 export function boardSceneData(name, {
   surface = DEFAULT_SURFACE, color = BOARD_DEFAULTS.color, frame = null, surround = BOARD_DEFAULTS.surround,
-  width = BOARD_DEFAULTS.width, height = BOARD_DEFAULTS.height
+  width = BOARD_DEFAULTS.width, height = BOARD_DEFAULTS.height, style, decor
 } = {}) {
+  const board = { version: 1, locked: false, surface: surfaceFlag(surface, { color, frame }) };
+  if ( style ) board.style = style;
+  if ( decor ) board.decor = decor;
   const levelId = foundry.documents.BaseScene.metadata.defaultLevelId;
   return {
     name,
@@ -36,7 +42,7 @@ export function boardSceneData(name, {
     environment: { globalLight: { enabled: true }, darknessLevel: 0 },
     navigation: true,
     ownership: { default: OWNER() },
-    flags: { [MODULE_ID]: { board: { version: 1, locked: false, surface: surfaceFlag(surface, { color, frame }) }, cards: {} } }
+    flags: { [MODULE_ID]: { board, cards: {} } }
   };
 }
 
@@ -128,7 +134,11 @@ async function onRenderSceneConfig(app, element) {
     plainColor: validColor(scene.flags[MODULE_ID]?.board?.surface?.color, getSurface("plain").color),
     frame: current.frame ?? "",
     defaultFrame: defaultFrameColor(current) ?? "",
-    rootId: app.id
+    rootId: app.id,
+    style: (() => {
+      const { decor, ...style } = boardStyle(scene);
+      return styleFieldsData(style, decor, `flags.${MODULE_ID}.board.`);
+    })()
   });
   tab.insertAdjacentHTML("afterbegin", html);
   // The border picker shows the surface's own frame colour until one is chosen.
@@ -139,6 +149,9 @@ async function onRenderSceneConfig(app, element) {
   const syncBorder = () => setPlaceholderColor(border, defaultFrameColor({ id: select.value, color: plain.value }) ?? "");
   select.addEventListener("change", syncBorder);
   plain.addEventListener("change", syncBorder);
+  // Choosing another surface switches the styles to its theme and offers its frame's decorations.
+  const styleFields = bindStyleFields(fieldset, () => select.value || null);
+  select.addEventListener("change", () => styleFields.surfaceChanged());
   app.setPosition?.();
 }
 

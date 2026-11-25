@@ -32,7 +32,11 @@ export async function editNote(layer, cardId, { isNew = false } = {}) {
   ta.value = card.text;
   ta.spellcheck = true;
   ta.setAttribute("aria-label", game.i18n.localize("DIMANCER_BOARD.Sticker.Edit"));
-  ta.style.setProperty("--paper", card.color ?? "#fff17a");
+  // The note's look in the board's card style: paper, ink and font.
+  const look = obj.noteEditorLook();
+  ta.style.setProperty("--paper", look.paper);
+  ta.style.setProperty("--ink", look.ink);
+  ta.style.setProperty("--font", look.font);
   document.body.append(ta);
   obj.editing = true;
   obj.refresh();

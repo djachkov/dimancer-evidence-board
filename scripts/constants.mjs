@@ -30,6 +30,7 @@ export const TEMPLATES = Object.freeze({
   addEvidence: `modules/${MODULE_ID}/templates/add-evidence.hbs`,
   sceneConfig: `modules/${MODULE_ID}/templates/scene-config.hbs`,
   createBoard: `modules/${MODULE_ID}/templates/create-board.hbs`,
+  styleFields: `modules/${MODULE_ID}/templates/style-fields.hbs`,
   evidenceJournal: `modules/${MODULE_ID}/templates/evidence-journal.hbs`
 });
 

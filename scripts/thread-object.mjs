@@ -1,10 +1,9 @@
-import { sagControl, sampleCurve, strokePolygon } from "./links.mjs";
-
-const toNumber = color => Number.parseInt(String(color).slice(1), 16) || 0xc0392b;
+import { strokePolygon } from "./links.mjs";
+import { threadPainter } from "./render/threads.mjs";
 
 /**
- * One thread between two pins: a sagging piece of yarn with a soft shadow and a knot at each pin.
- * Drawn in layer (= canvas) coordinates. Right-click opens the thread menu; dragging the yarn pulls
+ * One thread between two pins, drawn in the board's thread style (yarn, twine or a data line; see
+ * render/threads.mjs). Drawn in layer (= canvas) coordinates. Right-click opens the thread menu; dragging the yarn pulls
  * its nearer end off its pin, to tie it to another pin (on any card but the other end's).
  */
 export default class ThreadObject extends PIXI.Graphics {
@@ -41,30 +40,43 @@ export default class ThreadObject extends PIXI.Graphics {
   #paint(p1, p2, { faded = false, interactive = true, trim = [0, 0] } = {}) {
     this.ends = [p1, p2];
     this.drawOptions = { faded, interactive, trim };
-    const c = sagControl(p1, p2);
-    const color = toNumber(this.link.color);
-    const round = { cap: PIXI.LINE_CAP.ROUND, join: PIXI.LINE_JOIN.ROUND };
-    // Keep the yarn readable when zoomed out: at least ~2 screen px, never thinner than 4 board px.
+    const painter = this.painter;
+    // Keep the thread readable when zoomed out: at least ~2 screen px, never thinner than its own width.
     const k = Math.max(1, 0.55 / (canvas.stage?.scale.x || 1));
-    const width = (this.hovered ? 6 : 4) * k;
-    const knot = 5 * k;
-    this.clear()
-      .lineStyle({ width: width + 1, color: 0x000000, alpha: 0.28, ...round })
-      .moveTo(p1.x + (2 * k), p1.y + (5 * k)).quadraticCurveTo(c.x + (2 * k), c.y + (5 * k), p2.x + (2 * k), p2.y + (5 * k))
-      .lineStyle({ width, color, alpha: 1, ...round })
-      .moveTo(p1.x, p1.y).quadraticCurveTo(c.x, c.y, p2.x, p2.y)
-      .lineStyle(0)
-      .beginFill(color).drawCircle(p1.x, p1.y, knot).drawCircle(p2.x, p2.y, knot).endFill()
-      .beginFill(0xffffff, 0.35).drawCircle(p1.x - (0.3 * knot), p1.y - (0.3 * knot), 0.36 * knot)
-      .drawCircle(p2.x - (0.3 * knot), p2.y - (0.3 * knot), 0.36 * knot).endFill();
+    this.k = k;
+    this.clear();
+    painter.paint(this, p1, p2, { color: this.link.color, k, hovered: this.hovered });
+    if ( !painter.animate ) this.packets?.clear();
     this.alpha = faded ? 0.5 : 1;
-    const yarn = sampleCurve(p1, c, p2, 24)
+    const width = painter.width(this.hovered) * k;
+    const path = painter.path(p1, p2)
       .filter(p => (Math.hypot(p.x - p1.x, p.y - p1.y) > trim[0]) && (Math.hypot(p.x - p2.x, p.y - p2.y) > trim[1]));
-    this.hitArea = new PIXI.Polygon(strokePolygon(yarn, Math.max(7, width)));
+    this.hitArea = new PIXI.Polygon(strokePolygon(path, Math.max(7, width)));
     // Only people who can edit the board get the thread menu; for everyone else the thread must
     // not swallow clicks meant for the cards underneath.
     this.eventMode = interactive ? "static" : "none";
     this.cursor = "grab";
+  }
+
+  /** The painter of the board's thread style. */
+  get painter() {
+    return threadPainter(this.layer.style?.threads);
+  }
+
+  /** Move anything that travels along the thread (a data line's packets) to time t, in seconds. */
+  animate(t) {
+    const painter = this.painter;
+    if ( !painter.animate || !this.ends || this.destroyed ) return;
+    if ( !this.packets ) {
+      this.packets = this.addChild(new PIXI.Graphics());
+      this.packets.eventMode = "none";
+    }
+    painter.animate(this.packets, ...this.ends, { color: this.link.color, k: this.k ?? 1, t });
+  }
+
+  /** Take the packets off (animation turned off). */
+  stopAnimation() {
+    this.packets?.clear();
   }
 
   #createInteractionManager() {
