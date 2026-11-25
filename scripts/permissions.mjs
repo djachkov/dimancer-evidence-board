@@ -38,6 +38,11 @@ export function canEditCard(scene, card, user = game.user) {
   return user.isGM || !card.locked;
 }
 
+/** Can the user move or resize this card? A locked card stays put for everyone, GMs included. */
+export function canMoveCard(scene, card, user = game.user) {
+  return canEditCard(scene, card, user) && !card.locked;
+}
+
 /** Can the user see this card? Hidden cards are GM-only. */
 export function canSeeCard(card, user = game.user) {
   return !!card && (user.isGM || !card.hidden);

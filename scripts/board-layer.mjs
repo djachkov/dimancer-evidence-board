@@ -2,7 +2,7 @@ import { FLAG_BOARD, t } from "./constants.mjs";
 import {
   A4, cardList, cardUpdate, cardCreate, cardDelete, isEvidence, newCard, topSort, bottomSort, isTop, clampToRect
 } from "./cards.mjs";
-import { isBoard, boardCards, boardLinks, boardSettings, getCard, canEditBoard, canEditCard, canSeeCard } from "./permissions.mjs";
+import { isBoard, boardCards, boardLinks, boardSettings, getCard, canEditBoard, canEditCard, canMoveCard, canSeeCard } from "./permissions.mjs";
 import { THREAD_COLORS, linkBetween, linkCreate, linkDelete, linkUpdate, linksOf, newLink, visibleLinks } from "./links.mjs";
 import ThreadObject from "./thread-object.mjs";
 import { emit } from "./socket.mjs";
@@ -669,7 +669,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /** Save a drag result, bringing the card to the front. */
   async commitGeometry(id, geometry) {
     const card = getCard(this.scene, id);
-    if ( !card || !canEditCard(this.scene, card) ) return this.refreshCards();
+    if ( !card || !canMoveCard(this.scene, card) ) return this.refreshCards();
     const patch = { x: geometry.x, y: geometry.y, width: geometry.width, height: geometry.height };
     const cards = boardCards(this.scene);
     if ( !isTop(cards, id) ) patch.sort = topSort(cards);

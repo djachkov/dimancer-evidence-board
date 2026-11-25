@@ -1,6 +1,6 @@
 import { t } from "./constants.mjs";
 import { MIN_CARD_SIZE, MAX_CARD_SIZE, clampToRect, isEvidence } from "./cards.mjs";
-import { boardLinks, canEditBoard, canEditCard } from "./permissions.mjs";
+import { boardLinks, canEditBoard, canEditCard, canMoveCard } from "./permissions.mjs";
 import { linksOf } from "./links.mjs";
 import { NOTE_COLORS, inkHit, localToView, viewScale } from "./stickers.mjs";
 import { drawStrokes } from "./ink.mjs";
@@ -139,6 +139,11 @@ export default class CardObject extends PIXI.Container {
 
   get editable() {
     return canEditCard(canvas.scene, this.card);
+  }
+
+  /** Can this card be dragged or resized? Not while it's locked, even by a GM. */
+  get movable() {
+    return canMoveCard(canvas.scene, this.card);
   }
 
   /* -------------------------------------------- */
@@ -299,7 +304,7 @@ export default class CardObject extends PIXI.Container {
         .drawRect(left - lw, top - lw, fw + (2 * lw), fh + (2 * lw));
     }
     this.handle.clear();
-    const showHandle = this.selected && this.editable;
+    const showHandle = this.selected && this.movable;
     if ( showHandle ) {
       this.handle.lineStyle(lw, 0x000000, 0.8).beginFill(SELECT_COLOR)
         .drawCircle(left + fw, top + fh, handleR).endFill();
@@ -586,9 +591,9 @@ export default class CardObject extends PIXI.Container {
     return new MIM(this, canvas.stage, permissions, callbacks);
   }
 
-  /** Moving needs the card to be editable; pulling a thread only needs the board to be. */
+  /** Moving needs the card to be movable (editable, not locked); pulling a thread only needs the board to be. */
   #canDrag() {
-    return this.layer.isConnectTool ? canEditBoard(canvas.scene) : this.editable;
+    return this.layer.isConnectTool ? canEditBoard(canvas.scene) : this.movable;
   }
 
   #onHoverIn() {
@@ -618,7 +623,7 @@ export default class CardObject extends PIXI.Container {
     }
     this.layer.select(this.editable ? this.id : null);
     // Set the cursor for a possible resize, which starts from this press
-    if ( this.#onHandle(event.getLocalPosition(this)) ) this.cursor = "nwse-resize";
+    if ( this.movable && this.#onHandle(event.getLocalPosition(this)) ) this.cursor = "nwse-resize";
   }
 
   #onClickLeft2(event) {

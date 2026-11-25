@@ -142,7 +142,7 @@ branch, the separate evidence viewer.)
 | | GM | Player (board Accessibility *Owner*) | Player (*Observer*) |
 |---|---|---|---|
 | See cards | all, hidden ones faded | all but hidden | all but hidden |
-| Pin, move, resize, rename, delete | ✓ | ✓, except locked cards | – |
+| Pin, move, resize, rename, delete | ✓ (locked cards can't be moved or resized) | ✓, except locked cards | – |
 | Connect, recolour and cut threads | ✓ | ✓ | – |
 | Hide/reveal, lock/unlock a card | ✓ | – | – |
 | Lock the whole board | ✓ (toolbar lock, or Scene config) | – | – |

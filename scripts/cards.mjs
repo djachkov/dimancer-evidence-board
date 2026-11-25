@@ -17,7 +17,7 @@
  * @property {string} title
  * @property {string} notes        HTML
  * @property {boolean} hidden      Only GMs see hidden cards
- * @property {boolean} locked      Only GMs can change locked cards
+ * @property {boolean} locked      Nobody can move or resize it; only GMs can change it otherwise
  * @property {string|null} link    UUID of the document the card was made from
  * @property {string|null} category  Category id (see organize.mjs)
  * @property {string|null} folder    Folder id in the evidence list (null = top level)
