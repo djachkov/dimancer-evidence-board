@@ -1,7 +1,7 @@
 import { t } from "./constants.mjs";
 import { MIN_CARD_SIZE, MAX_CARD_SIZE, clampToRect, isEvidence } from "./cards.mjs";
 import { boardLinks, canEditBoard, canEditCard, canMoveCard } from "./permissions.mjs";
-import { linksOf } from "./links.mjs";
+import { MAIN_PIN, usedPins } from "./links.mjs";
 import { NOTE_COLORS, inkHit, localToView, viewScale } from "./stickers.mjs";
 import { drawStrokes } from "./ink.mjs";
 import { isPdfDocument, pdfPreview } from "./pdf-preview.mjs";
@@ -9,6 +9,7 @@ import { isPdfDocument, pdfPreview } from "./pdf-preview.mjs";
 const SELECT_COLOR = 0xff9829;
 const PAPER = 0xf7f3ea;
 const PIN = 0xc0392b;
+const MERGE_COLOR = 0x37b24d;
 const DOC_PAPER = 0xfbfaf5;
 const DOC_EDGE = 0xd3ccba;
 const DOC_FONT = "Georgia, 'Times New Roman', serif";
@@ -111,6 +112,15 @@ export default class CardObject extends PIXI.Container {
   /** Set while this client is dragging the card. */
   dragging = null;
 
+  /** A pin being dragged here, or just dropped: {id, x, y} as fractions of the paper. */
+  pinPreview = null;
+
+  /** The pin under the pointer, ringed when it can be moved or tied to. */
+  #hoverPin = null;
+
+  /** Pins the layer rings (a thread's snap target). */
+  #highlights = new Set();
+
   hovered = false;
 
   #textureSrc = null;
@@ -154,6 +164,7 @@ export default class CardObject extends PIXI.Container {
     await this.#loadTexture();
     this.refresh();
     this.mouseInteractionManager = this.#createInteractionManager().activate();
+    this.on("pointermove", this.#onPointerMove, this);
     return this;
   }
 
@@ -161,7 +172,7 @@ export default class CardObject extends PIXI.Container {
   async setCard(card) {
     this.card = card;
     // A drop's result has arrived: stop showing the optimistic preview.
-    if ( !this.dragging ) this.preview = null;
+    if ( !this.dragging ) this.preview = this.pinPreview = null;
     if ( card.src !== this.#textureSrc ) await this.#loadTexture();
     this.refresh();
   }
@@ -234,7 +245,10 @@ export default class CardObject extends PIXI.Container {
 
     this.position.set(g.x + (w / 2), g.y + (h / 2));
     this.angle = this.card.rotation;
-    this.zIndex = this.dragging ? Number.MAX_SAFE_INTEGER : this.card.sort;
+    // A card being moved or resized is lifted above the other cards, but stays under the threads
+    // (they hang from its pins). Dragging one of its pins or pulling a thread out of it leaves it put.
+    const lifted = ["move", "resize"].includes(this.dragging?.mode);
+    this.zIndex = lifted ? Number.MAX_SAFE_INTEGER - 2 : this.card.sort;
     this.alpha = this.card.hidden ? 0.55 : 1;
 
     this.shadow.clear();
@@ -287,13 +301,27 @@ export default class CardObject extends PIXI.Container {
       this.tabText.position.set(tabX + (tabW / 2), tabY + (tabH * 0.85 / 2) + 1);
     }
 
-    // Push-pin, top centre. Ink on the board only gets one once a thread hangs from it.
+    // Push-pins: the card's own (top centre unless moved) and one for each other pin a thread hangs
+    // from. Ink on the board only gets its own pin once a thread hangs from it.
+    // A ring marks the pin under the pointer and a thread's snap target; a green one the two pins a
+    // pin being dragged would merge.
     this.pin.clear();
-    if ( (kind !== "sketch") || linksOf(boardLinks(canvas.scene), [this.id]).length ) {
+    const merge = this.dragging?.merge;
+    const ringW = 2.5 / (canvas.stage?.scale.x || 1);
+    for ( const id of this.shownPins() ) {
+      const p = this.#pinLocal(id, L);
+      const merging = merge && ((id === merge) || (id === this.dragging.pin));
+      const ringed = merging || (id === this.#hoverPin) || this.#highlights.has(id)
+        || ((this.dragging?.mode === "pin") && (id === this.dragging.pin));
+      if ( ringed ) {
+        const color = merging ? MERGE_COLOR : SELECT_COLOR;
+        this.pin.beginFill(color, 0.3).drawCircle(p.x, p.y, pinR * 1.7).endFill()
+          .lineStyle(ringW, color, 1).drawCircle(p.x, p.y, pinR * 1.7).lineStyle(0);
+      }
       this.pin
-        .beginFill(0x000000, 0.25).drawCircle(pinR * 0.35, top + pinR * 0.55, pinR).endFill()
-        .beginFill(PIN).drawCircle(0, top + (pinR * 0.2), pinR).endFill()
-        .beginFill(0xffffff, 0.45).drawCircle(-pinR * 0.35, top + (pinR * 0.2) - (pinR * 0.35), pinR * 0.3).endFill();
+        .beginFill(0x000000, 0.25).drawCircle(p.x + (pinR * 0.35), p.y + (pinR * 0.35), pinR).endFill()
+        .beginFill(PIN).drawCircle(p.x, p.y, pinR).endFill()
+        .beginFill(0xffffff, 0.45).drawCircle(p.x - (pinR * 0.35), p.y - (pinR * 0.35), pinR * 0.3).endFill();
     }
 
     // Hover / selection outline and the resize handle
@@ -541,12 +569,107 @@ export default class CardObject extends PIXI.Container {
     ticker.add(this.flashTick);
   }
 
-  /** The centre of the push-pin in canvas coordinates, for the geometry shown right now. */
-  pinPoint() {
+  /** The pins drawn on this card: its own, unless it's ink without a thread on it, and those threads use. */
+  shownPins() {
+    const used = usedPins(boardLinks(canvas.scene), this.id);
+    // A thread naming a pin that no longer exists hangs from the main pin.
+    for ( const id of used ) if ( (id !== MAIN_PIN) && !this.card.pins[id] ) used.add(MAIN_PIN);
+    const ids = [...used].filter(id => (id === MAIN_PIN) || this.card.pins[id]);
+    if ( (this.kind !== "sketch") && !ids.includes(MAIN_PIN) ) ids.unshift(MAIN_PIN);
+    return ids;
+  }
+
+  /** A pin's position as fractions of the paper (a moving pin's preview, its stored spot, or the default). */
+  #pinFraction(id, L) {
+    if ( this.pinPreview?.id === id ) return this.pinPreview;
+    const stored = this.card.pins[id] ?? this.card.pins[MAIN_PIN];
+    if ( stored ) return stored;
+    return { x: 0.5, y: (L.pinR * 0.2) / L.fh };
+  }
+
+  /** A pin's centre in local space. */
+  #pinLocal(id, L) {
+    const f = (id && typeof id === "object") ? id : this.#pinFraction(id, L);
+    return { x: L.left + (f.x * L.fw), y: L.top + (f.y * L.fh) };
+  }
+
+  /** A local point as fractions of the paper, clamped onto it. */
+  #toFraction(local, L = this.layout()) {
+    const clamp = v => Math.round(Math.min(Math.max(v, 0), 1) * 10000) / 10000;
+    return { x: clamp((local.x - L.left) / L.fw), y: clamp((local.y - L.top) / L.fh) };
+  }
+
+  /** How close (in board units) the pointer must be to a pin to grab it. */
+  pinReach(L = this.layout()) {
+    return Math.max(L.pinR * 1.5, 10 / (canvas.stage?.scale.x || 1));
+  }
+
+  /** The shown pin under a local point, or null. */
+  #pinAtLocal(local, { except = null } = {}) {
+    const L = this.layout();
+    const reach = this.pinReach(L);
+    let best = null;
+    let bestD = Infinity;
+    for ( const id of this.shownPins() ) {
+      if ( id === except ) continue;
+      const p = this.#pinLocal(id, L);
+      const d = Math.hypot(local.x - p.x, local.y - p.y);
+      if ( (d <= reach) && (d < bestD) ) [best, bestD] = [id, d];
+    }
+    return best;
+  }
+
+  /** Ring these pins (or none) for the layer: a thread's snap target. */
+  setPinHighlight(pins = []) {
+    const next = new Set(pins);
+    if ( (next.size === this.#highlights.size) && [...next].every(p => this.#highlights.has(p)) ) return;
+    this.#highlights = next;
+    this.refresh();
+  }
+
+  /** Can the pins be grabbed right now: moved (Select tool), or tied to (connecting)? */
+  #pinsLive() {
+    if ( this.dragging ) return false;
+    const tool = this.layer.tool;
+    if ( this.layer.connecting || (tool === "connect") ) return canEditBoard(canvas.scene);
+    return (tool === "select") && this.movable;
+  }
+
+  #onPointerMove(event) {
+    const pin = this.#pinsLive() ? this.#pinAtLocal(event.getLocalPosition(this)) : null;
+    if ( pin === this.#hoverPin ) return;
+    this.#hoverPin = pin;
+    if ( !this.layer.connecting && (this.layer.tool === "select") ) this.cursor = pin ? "grab" : (this.editable ? "pointer" : "zoom-in");
+    this.refresh();
+  }
+
+  /** The shown pin under a canvas point, or null. */
+  pinAt(point) {
+    return point ? this.#pinAtLocal(this.toLocal(point, canvas.stage)) : null;
+  }
+
+  /**
+   * Where a thread touching this card at a canvas point hangs: an existing pin under the point, else
+   * a new pin right there (when `create` and the card is editable), else the card's own pin.
+   * @returns {{pin: string, at?: {x: number, y: number}}}  `at` is set for a pin still to be made
+   */
+  anchorAt(point, { create = true } = {}) {
+    const pin = this.pinAt(point);
+    if ( pin ) return { pin };
+    if ( create && point && this.editable ) {
+      return { pin: foundry.utils.randomID(), at: this.#toFraction(this.toLocal(point, canvas.stage)) };
+    }
+    return { pin: MAIN_PIN };
+  }
+
+  /**
+   * A pin's centre in canvas coordinates, for the geometry shown right now.
+   * @param {string|{pin: string, at?: object}} [pin]  A pin id, or an anchor from anchorAt
+   */
+  pinPoint(pin = MAIN_PIN) {
     const g = this.preview ?? this.card;
     const L = this.layout(g);
-    const lx = 0;
-    const ly = L.top + (L.pinR * 0.2);
+    const { x: lx, y: ly } = this.#pinLocal((typeof pin === "object") ? (pin.at ?? pin.pin) : pin, L);
     const theta = Math.toRadians(this.card.rotation);
     const cx = g.x + (g.width / 2);
     const cy = g.y + (g.height / 2);
@@ -604,6 +727,7 @@ export default class CardObject extends PIXI.Container {
 
   #onHoverOut() {
     this.hovered = false;
+    this.#hoverPin = null;
     this.refresh();
   }
 
@@ -612,13 +736,13 @@ export default class CardObject extends PIXI.Container {
     // Tying a thread: a click on the second card finishes it ("Connect to…" or the Connect tool).
     const connecting = this.layer.connecting;
     if ( connecting && (connecting.fromId !== this.id) ) {
-      this.layer.finishConnect(this.id);
+      this.layer.finishConnect(this.id, event.interactionData?.origin ?? event.getLocalPosition(canvas.stage));
       return false;   // no drag from this press
     }
     if ( this.layer.isConnectTool ) {
       // The first card of a thread; a drag from here pulls the thread instead of moving the card.
       if ( connecting?.fromId === this.id ) return;
-      this.layer.beginConnect(this.id);
+      this.layer.beginConnect(this.id, this.anchorAt(event.interactionData?.origin ?? event.getLocalPosition(canvas.stage)));
       return;
     }
     this.layer.select(this.editable ? this.id : null);
@@ -640,12 +764,23 @@ export default class CardObject extends PIXI.Container {
   #onDragLeftStart(event) {
     this.layer.closeMenu();
     if ( this.layer.isConnectTool ) {
-      if ( this.layer.connecting?.fromId !== this.id ) this.layer.beginConnect(this.id);
+      if ( this.layer.connecting?.fromId !== this.id ) this.layer.beginConnect(this.id, this.anchorAt(event.interactionData.origin));
       this.dragging = { mode: "connect" };
       return;
     }
     const origin = event.interactionData.origin;
     const local = this.toLocal(origin, canvas.stage);
+    // A press on a pin moves the pin (the resize handle wins where they overlap).
+    const pin = !this.#onHandle(local) && this.#pinAtLocal(local);
+    if ( pin ) {
+      const start = { ...this.#pinFraction(pin, this.layout()) };
+      this.dragging = { mode: "pin", pin, start, merge: null };
+      this.#hoverPin = null;
+      this.cursor = "grabbing";
+      this.pinPreview = { id: pin, ...start };
+      this.refresh();
+      return;
+    }
     const g = this.card;
     this.dragging = {
       mode: this.#onHandle(local) ? "resize" : "move",
@@ -659,9 +794,20 @@ export default class CardObject extends PIXI.Container {
   #onDragLeftMove(event) {
     if ( !this.dragging ) return;
     if ( this.dragging.mode === "connect" ) return this.layer.updateRubber(event.interactionData.destination);
+    if ( this.dragging.mode === "pin" ) return this.#pinFrom(event.interactionData.destination);
     this.#previewFrom(event.interactionData.destination);
     this.refresh();
     this.#emitDrag();
+  }
+
+  /** Move the dragged pin under the pointer at `dest` (canvas coordinates). */
+  #pinFrom(dest) {
+    if ( !dest ) return;
+    const local = this.toLocal(dest, canvas.stage);
+    this.pinPreview = { id: this.dragging.pin, ...this.#toFraction(local) };
+    // Dropped on another of this card's pins, the two merge: one pin holding both pins' threads.
+    this.dragging.merge = this.#pinAtLocal(local, { except: this.dragging.pin });
+    this.refresh();
   }
 
   /** Geometry for the pointer at `dest` (canvas coordinates). */
@@ -721,8 +867,21 @@ export default class CardObject extends PIXI.Container {
       this.dragging = null;
       const dest = event.interactionData?.destination;
       const target = dest && this.layer.cardAt(dest);
-      if ( target && (target.id !== this.id) ) return this.layer.finishConnect(target.id);
+      if ( target && (target.id !== this.id) ) return this.layer.finishConnect(target.id, dest);
       return this.layer.cancelConnect();
+    }
+    if ( this.dragging?.mode === "pin" ) {
+      this.#pinFrom(event.interactionData?.destination);
+      const { pin, start, merge } = this.dragging;
+      const at = { x: this.pinPreview.x, y: this.pinPreview.y };
+      this.dragging = null;
+      this.cursor = "grab";
+      if ( merge ) return this.layer.mergePins(this.id, pin, merge);
+      if ( (at.x === start.x) && (at.y === start.y) ) {
+        this.pinPreview = null;
+        return this.refresh();
+      }
+      return this.layer.movePin(this.id, pin, at);
     }
     if ( !this.dragging || !this.preview ) return;
     // Moves are throttled to the frame rate, so take the final position from the drop itself.
@@ -750,7 +909,7 @@ export default class CardObject extends PIXI.Container {
       return this.layer.cancelConnect();
     }
     this.dragging = null;
-    this.preview = null;
+    this.preview = this.pinPreview = null;
     this.cursor = this.editable ? "pointer" : "zoom-in";
     this.refresh();
     this.layer.emitDragEnd(this.id);

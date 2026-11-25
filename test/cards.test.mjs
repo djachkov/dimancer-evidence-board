@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeCard, fitSize, newCard, cardList, topSort, bottomSort, isTop, orderedCards, neighbours,
-  clampToRect, cardUpdate, cardCreate, cardDelete, MIN_CARD_SIZE, A4, isEvidence
+  clampToRect, cardUpdate, cardCreate, cardDelete, MIN_CARD_SIZE, A4, isEvidence, normalizePins
 } from "../scripts/cards.mjs";
 
 const card = (id, x, y, extra = {}) => ({ id, src: `${id}.png`, x, y, width: 100, height: 100, ...extra });
@@ -108,4 +108,11 @@ test("text documents are evidence cards with pages, sized as A4", () => {
   // Reading order takes documents along with images, and leaves stickers out.
   const order = orderedCards(board(card("a", 0, 0), card("s", 200, 0, { kind: "note" }), card("d", 400, 0, { kind: "document" })), { evidenceOnly: true });
   assert.deepEqual(order.map(x => x.id), ["a", "d"]);
+});
+
+test("normalizePins clamps pins onto the paper and drops junk", () => {
+  assert.deepEqual(normalizePins(null), {});
+  assert.deepEqual(normalizePins({ main: { x: 0.5, y: -1 }, p: { x: 2, y: 0.25 }, bad: { x: "1" }, nil: null }),
+    { main: { x: 0.5, y: 0 }, p: { x: 1, y: 0.25 } });
+  assert.deepEqual(normalizeCard({}, "c").pins, {});
 });

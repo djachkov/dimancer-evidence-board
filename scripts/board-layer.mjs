@@ -1,9 +1,12 @@
 import { FLAG_BOARD, t } from "./constants.mjs";
 import {
-  A4, cardList, cardUpdate, cardCreate, cardDelete, isEvidence, newCard, topSort, bottomSort, isTop, clampToRect
+  A4, cardList, cardUpdate, cardCreate, isEvidence, newCard, topSort, bottomSort, isTop, clampToRect
 } from "./cards.mjs";
 import { isBoard, boardCards, boardLinks, boardSettings, getCard, canEditBoard, canEditCard, canMoveCard, canSeeCard } from "./permissions.mjs";
-import { THREAD_COLORS, linkBetween, linkCreate, linkDelete, linkUpdate, linksOf, newLink, visibleLinks } from "./links.mjs";
+import {
+  MAIN_PIN, THREAD_COLORS, linkBetween, linkCreate, linkDelete, linkList, linkUpdate, linksOf, newLink, orphanedPins,
+  orphanPinsUpdate, pinOf, visibleLinks
+} from "./links.mjs";
 import ThreadObject from "./thread-object.mjs";
 import { emit } from "./socket.mjs";
 import CardObject from "./card-object.mjs";
@@ -21,7 +24,7 @@ import { drawStroke } from "./ink.mjs";
 import { closePenBar, penPrefs, showPenBar } from "./pen-bar.mjs";
 import { closeNoteEditor, editNote } from "./note-editor.mjs";
 import {
-  canEditJournal, canEditPage, createEvidencePage, deleteEvidence, getEvidenceJournal, linkCardToJournal,
+  canEditJournal, createEvidencePage, getEvidenceJournal, linkCardToJournal,
   newDocument, openEvidenceJournal, pageOfCard, removeCards
 } from "./journal-store.mjs";
 
@@ -44,13 +47,13 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /** @type {Map<string, ThreadObject>} */
   threads = new Map();
 
-  /** Threads are drawn above every card (but below a card being dragged). */
+  /** Threads are drawn above every card, a card being dragged included. */
   threadLayer = null;
 
   /**
-   * An in-progress connection: the card the thread starts from, and the rubber-band line that
-   * follows the cursor until another card is clicked.
-   * @type {{fromId: string, rubber: PIXI.Graphics, onMove: Function, onKey: Function}|null}
+   * An in-progress connection: the card the thread starts from and where on it (an existing pin,
+   * or a new one), and the rubber-band line that follows the cursor until another card is clicked.
+   * @type {{fromId: string, from: {pin: string, at?: object}, rubber: PIXI.Graphics, onMove: Function, onKey: Function}|null}
    */
   connecting = null;
 
@@ -265,7 +268,9 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       obj.link = link;
       const a = this.cards.get(link.from);
       const b = this.cards.get(link.to);
-      obj.draw(a.pinPoint(), b.pinPoint(), { faded: a.card.hidden || b.card.hidden, interactive });
+      obj.draw(a.pinPoint(link.fromPin), b.pinPoint(link.toPin), {
+        faded: a.card.hidden || b.card.hidden, interactive, trim: [a.pinReach(), b.pinReach()]
+      });
     }
   }
 
@@ -305,8 +310,10 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /**
    * Start a thread from a card. A line follows the cursor until another card is clicked;
    * Esc, right-click or a click on the empty board cancels.
+   * @param {string} fromId
+   * @param {{pin: string, at?: object}} [from]  Where on the card (see CardObject#anchorAt)
    */
-  beginConnect(fromId) {
+  beginConnect(fromId, from = { pin: MAIN_PIN }) {
     if ( !canEditBoard(this.scene) || !this.cards.has(fromId) ) return;
     this.cancelConnect();
     this.closeMenu();
@@ -322,32 +329,54 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     };
     canvas.stage.on("pointermove", onMove);
     document.addEventListener("keydown", onKey, { capture: true });
-    this.connecting = { fromId, rubber, onMove, onKey };
+    this.connecting = { fromId, from, rubber, onMove, onKey };
     document.body.classList.add("dimancer-board-connecting");
     this.refreshThreads();   // threads stop catching clicks while connecting
     this.updateRubber(canvas.mousePosition);
   }
 
-  /** Draw the in-progress thread from its pin to a canvas point. */
+  /**
+   * Draw the in-progress thread from its pin to a canvas point. Over an existing pin of another
+   * card it snaps to that pin, ringed, since the thread will hang from it.
+   */
   updateRubber(point) {
     const c = this.connecting;
     const from = c && this.cards.get(c.fromId);
     if ( !from || !point ) return;
-    const p = from.pinPoint();
+    const p = from.pinPoint(c.from);
+    const target = this.cardAt(point);
+    const pin = (target && (target.id !== c.fromId)) ? target.pinAt(point) : null;
+    const end = pin ? target.pinPoint(pin) : point;
+    this.#highlightPin(pin ? target : null, pin);
     c.rubber.clear()
       .lineStyle({ width: 4, color: 0xc0392b, alpha: 0.75, cap: PIXI.LINE_CAP.ROUND })
-      .moveTo(p.x, p.y).lineTo(point.x, point.y)
-      .lineStyle(0).beginFill(0xc0392b, 0.9).drawCircle(point.x, point.y, 6).endFill();
+      .moveTo(p.x, p.y).lineTo(end.x, end.y)
+      .lineStyle(0).beginFill(0xc0392b, 0.9).drawCircle(end.x, end.y, 6).endFill();
   }
 
-  /** Tie the in-progress thread to a card. */
-  async finishConnect(toId) {
+  /** The card whose pin is ringed as a thread's snap target. */
+  #highlighted = null;
+
+  /** Ring one pin as a thread's snap target (or none). */
+  #highlightPin(card, pin) {
+    if ( this.#highlighted && (this.#highlighted !== card) && !this.#highlighted.destroyed ) this.#highlighted.setPinHighlight([]);
+    this.#highlighted = card;
+    card?.setPinHighlight(pin ? [pin] : []);
+  }
+
+  /**
+   * Tie the in-progress thread to a card: to its pin under `point`, or a new pin there.
+   * @param {string} toId
+   * @param {{x: number, y: number}} [point]  Canvas point where the card was clicked
+   */
+  async finishConnect(toId, point) {
     const c = this.connecting;
     if ( !c ) return;
     if ( toId === c.fromId ) return this.cancelConnect();
-    const fromId = c.fromId;
+    const { fromId, from } = c;
+    const to = this.cards.get(toId)?.anchorAt(point) ?? { pin: MAIN_PIN };
     this.cancelConnect();
-    return this.createLink(fromId, toId);
+    return this.createLink(fromId, toId, from, to);
   }
 
   cancelConnect() {
@@ -357,22 +386,147 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     canvas.stage?.off("pointermove", c.onMove);
     document.removeEventListener("keydown", c.onKey, { capture: true });
     if ( !c.rubber.destroyed ) c.rubber.destroy();
+    this.#highlightPin(null);
     document.body.classList.remove("dimancer-board-connecting");
     this.refreshThreads();
   }
 
-  async createLink(from, to) {
+  /**
+   * Tie a thread between two cards. Each end hangs from a pin: an existing one, or one made for it
+   * in the same update (only on a card the user can edit; otherwise its own pin).
+   * @param {string} from
+   * @param {string} to
+   * @param {{pin: string, at?: object}} [fromAnchor]
+   * @param {{pin: string, at?: object}} [toAnchor]
+   */
+  async createLink(from, to, fromAnchor = { pin: MAIN_PIN }, toAnchor = { pin: MAIN_PIN }) {
     const scene = this.scene;
     if ( !canEditBoard(scene) ) return ui.notifications.warn(t("Notify.NoEdit"));
     if ( linkBetween(boardLinks(scene), from, to) ) return ui.notifications.info(t("Notify.AlreadyConnected"));
-    const link = newLink({ id: foundry.utils.randomID(), from, to, author: game.user.id, created: Date.now() });
-    if ( link ) await scene.update(linkCreate(link));
+    const update = {};
+    const pinFor = (cardId, anchor) => {
+      if ( !anchor.at ) return anchor.pin;
+      if ( !canEditCard(scene, getCard(scene, cardId)) ) return MAIN_PIN;
+      Object.assign(update, cardUpdate(cardId, { [`pins.${anchor.pin}`]: anchor.at }));
+      return anchor.pin;
+    };
+    const link = newLink({
+      id: foundry.utils.randomID(), from, to, fromPin: pinFor(from, fromAnchor), toPin: pinFor(to, toAnchor),
+      author: game.user.id, created: Date.now()
+    });
+    if ( link ) await scene.update({ ...update, ...linkCreate(link) });
     return link;
   }
 
+  /** Cut threads, and take away the pins that no longer hold any. */
   async deleteLinks(ids) {
     if ( !ids.length || !canEditBoard(this.scene) ) return;
-    await this.scene.update(linkDelete(ids, _del));
+    await this.scene.update({ ...orphanPinsUpdate(boardLinks(this.scene), ids, _del), ...linkDelete(ids, _del) });
+  }
+
+  /**
+   * Where a pulled thread end would be tied at a canvas point: a card other than the one at the
+   * thread's other end (and not one that end is already tied to by another thread), and the pin
+   * there, if any, which is ringed. Called with no link, it clears the ring.
+   * @returns {{card: CardObject, pin: string|null, point: {x: number, y: number}|null}|null}
+   */
+  pullTarget(link, end, point) {
+    const target = link && point ? this.cardAt(point) : null;
+    const fixed = link && (end ? link.from : link.to);
+    const other = target && linkBetween(boardLinks(this.scene), fixed, target.id);
+    if ( !target || (target.id === fixed) || (other && (other.id !== link.id)) ) {
+      this.#highlightPin(null);
+      return null;
+    }
+    const pin = target.pinAt(point);
+    this.#highlightPin(pin ? target : null, pin);
+    return { card: target, pin, point: pin ? target.pinPoint(pin) : null };
+  }
+
+  /**
+   * Tie a pulled thread end to the pin under a canvas point (or a new pin there), on any card but
+   * the other end's. The pin it came off goes if no thread hangs from it any more. Dropped anywhere
+   * else, the thread stays as it was.
+   * @param {string} linkId
+   * @param {0|1} end         0 = the thread's `from` end, 1 = its `to` end
+   * @param {{x: number, y: number}} [point]
+   */
+  async repinThread(linkId, end, point) {
+    this.#highlightPin(null);
+    const scene = this.scene;
+    const links = boardLinks(scene);
+    const link = linkList(links).find(l => l.id === linkId);
+    if ( !link || !canEditBoard(scene) ) return this.refreshThreads();
+    const [cardKey, pinKey] = end ? ["to", "toPin"] : ["from", "fromPin"];
+    const fixed = end ? link.from : link.to;
+    const target = point ? this.cardAt(point) : null;
+    if ( !target || (target.id === fixed) ) return this.refreshThreads();
+    const other = linkBetween(links, fixed, target.id);
+    if ( other && (other.id !== link.id) ) {
+      ui.notifications.info(t("Notify.AlreadyConnected"));
+      return this.refreshThreads();
+    }
+    const anchor = target.anchorAt(point);
+    const update = {};
+    let pin = anchor.pin;
+    if ( anchor.at ) {
+      if ( canEditCard(scene, target.card) ) Object.assign(update, cardUpdate(target.id, { [`pins.${pin}`]: anchor.at }));
+      else pin = MAIN_PIN;
+    }
+    const oldCard = link[cardKey];
+    const oldPin = link[pinKey];
+    if ( (oldCard === target.id) && (oldPin === pin) ) return this.refreshThreads();
+    // The pin it leaves goes when nothing else hangs from it.
+    if ( orphanedPins(links, [link.id])[oldCard]?.includes(oldPin) ) {
+      Object.assign(update, cardUpdate(oldCard, { [`pins.${oldPin}`]: _del }));
+    }
+    Object.assign(update, linkUpdate(link.id, { [cardKey]: target.id, [pinKey]: pin }));
+    try {
+      await scene.update(update);
+    } catch(err) {
+      ui.notifications.error(err.message);
+      this.refreshThreads();
+    }
+  }
+
+  /**
+   * Merge two of a card's pins: one pin, where `target` is, holds both pins' threads. The card's
+   * own pin always survives (moving to `target` if it was the one dragged); the other goes.
+   */
+  async mergePins(cardId, dragged, target) {
+    const scene = this.scene;
+    const card = getCard(scene, cardId);
+    if ( !card || !canMoveCard(scene, card) || (dragged === target) ) return this.refreshCards();
+    const keep = (dragged === MAIN_PIN) ? MAIN_PIN : target;
+    const gone = (keep === target) ? dragged : target;
+    const update = {};
+    if ( dragged === MAIN_PIN ) {
+      const at = card.pins[target];
+      if ( at ) Object.assign(update, cardUpdate(cardId, { [`pins.${MAIN_PIN}`]: at }));
+    }
+    for ( const l of linksOf(boardLinks(scene), [cardId]) ) {
+      if ( pinOf(l, cardId) !== gone ) continue;
+      Object.assign(update, linkUpdate(l.id, { [(l.from === cardId) ? "fromPin" : "toPin"]: keep }));
+    }
+    if ( gone !== MAIN_PIN ) Object.assign(update, cardUpdate(cardId, { [`pins.${gone}`]: _del }));
+    try {
+      await this.#update(update);
+    } catch(err) {
+      ui.notifications.error(err.message);
+      this.cards.get(cardId)?.setCard(card);
+    }
+  }
+
+  /** Save a pin's new spot on its card (fractions of the paper). Locked cards keep their pins. */
+  async movePin(cardId, pin, at) {
+    const card = getCard(this.scene, cardId);
+    if ( !card || !canMoveCard(this.scene, card) ) return this.refreshCards();
+    try {
+      await this.#update(cardUpdate(cardId, { [`pins.${pin}`]: at }));
+    } catch(err) {
+      ui.notifications.error(err.message);
+      this.cards.get(cardId)?.setCard(card);
+    }
   }
 
   async setLinkColor(id, color) {
@@ -738,52 +892,28 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   }
 
   /**
-   * Delete cards, confirming first when any of them was pinned by someone else. Cards that show
-   * Evidence Journal pages ask whether to just take them off the board (the evidence stays in the
-   * journal) or to delete the evidence everywhere.
+   * Take cards off the board. Evidence stays in the Evidence Journal: evidence not in it yet is
+   * added first (when the user can add to the journal). Deleting evidence for good is done in the
+   * journal. Stickers, and evidence that can't go to the journal, are deleted, confirming first when
+   * someone else pinned them.
    */
   async deleteCards(ids, { confirm = true } = {}) {
     const scene = this.scene;
-    let cards = ids.map(id => getCard(scene, id)).filter(c => c && canEditCard(scene, c));
+    const cards = ids.map(id => getCard(scene, id)).filter(c => c && canEditCard(scene, c));
     if ( !cards.length ) return;
-    const linked = cards.filter(c => pageOfCard(c));
-    if ( linked.length && confirm ) {
-      const deletable = linked.some(c => canEditPage(pageOfCard(c)));
-      const choice = await foundry.applications.api.DialogV2.wait({
-        window: { title: t("Card.DeleteTitle") },
-        content: `<p>${t("Journal.CardDelete", { title: foundry.utils.escapeHTML(cardLabel(linked[0])) })}</p>`,
-        buttons: [
-          { action: "board", label: t("Journal.MoveToJournal"), icon: "fa-solid fa-book", default: true },
-          deletable && { action: "everywhere", label: t("Journal.DeleteEverywhere"), icon: "fa-solid fa-trash" },
-          { action: "cancel", label: t("Add.Cancel"), icon: "fa-solid fa-xmark" }
-        ].filter(Boolean),
-        rejectClose: false
-      });
-      if ( (choice !== "board") && (choice !== "everywhere") ) return;
-      this.select(null);
-      if ( choice === "everywhere" ) {
-        for ( const c of linked ) {
-          const p = pageOfCard(c);
-          if ( canEditPage(p) ) await deleteEvidence(p, { fromBoards: true });
-        }
-      }
-      // Whatever is still here comes off the board (the evidence stays in the journal).
-      const left = cards.map(c => c.id).filter(id => getCard(scene, id));
-      return removeCards(scene, left);
-    }
-    const others = cards.some(c => c.author && (c.author !== game.user.id));
-    if ( others && confirm ) {
+    const toJournal = c => !!c.page || (isEvidence(c) && canEditJournal());
+    const lost = cards.filter(c => !toJournal(c));
+    if ( confirm && lost.some(c => c.author && (c.author !== game.user.id)) ) {
       const ok = await foundry.applications.api.DialogV2.confirm({
         window: { title: t("Card.DeleteTitle") },
-        content: `<p>${t("Card.DeleteOthers", { title: foundry.utils.escapeHTML(cardLabel(cards[0])) })}</p>`
+        content: `<p>${t("Card.DeleteOthers", { title: foundry.utils.escapeHTML(cardLabel(lost[0])) })}</p>`
       });
       if ( !ok ) return;
     }
     this.select(null);
-    const cardIds = cards.map(c => c.id);
-    // A card's threads go with it, in the same update.
-    const threads = linksOf(boardLinks(scene), cardIds).map(l => l.id);
-    await scene.update({ ...cardDelete(cardIds, _del), ...linkDelete(threads, _del) });
+    for ( const c of cards ) if ( !c.page && toJournal(c) ) await linkCardToJournal(scene, c.id);
+    // A card's threads go with it, in the same update (removeCards).
+    return removeCards(scene, cards.map(c => c.id).filter(id => getCard(scene, id)));
   }
 
   /* -------------------------------------------- */
@@ -835,6 +965,8 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   openMenu(obj, event) {
     this.cancelConnect();
     const card = obj.card;
+    // "Connect to…" starts from the pin right-clicked, if any.
+    this.#menuPin = obj.pinAt(event.getLocalPosition?.(canvas.stage)) ?? MAIN_PIN;
     const editable = canEditCard(this.scene, card);
     const boardEditable = canEditBoard(this.scene);
     const threadCount = linksOf(boardLinks(this.scene), [card.id]).length;
@@ -856,9 +988,9 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       gm && { action: "hide", icon: card.hidden ? "fa-eye" : "fa-eye-slash", label: t(card.hidden ? "Card.Reveal" : "Card.Hide") },
       gm && { action: "lock", icon: card.locked ? "fa-lock-open" : "fa-lock", label: t(card.locked ? "Card.Unlock" : "Card.Lock") },
       // Evidence Journal (POC)
-      editable && card.page && { action: "unplace", icon: "fa-book", label: t("Journal.MoveToJournal") },
       editable && isEvidence(card) && !card.page && canEditJournal() && { action: "addJournal", icon: "fa-book-medical", label: t("Journal.AddToJournal") },
-      editable && { action: "delete", icon: "fa-trash", label: t("Card.Delete"), danger: true }
+      // Evidence stays in the journal; deleting it for good is done there.
+      editable && { action: "remove", icon: "fa-right-from-bracket", label: t("Card.Remove") }
     ];
     const ne = event.nativeEvent ?? event;
     this.#menuAt = { x: ne.clientX, y: ne.clientY };
@@ -880,6 +1012,9 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
 
   /** Where the last card menu opened (follow-up pickers open there too). */
   #menuAt = { x: 0, y: 0 };
+
+  /** The pin the last card menu was opened on. */
+  #menuPin = MAIN_PIN;
 
   /**
    * The menu for one thread: its colour and delete.
@@ -922,7 +1057,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
         return this.patchCard(id, patch);
       }
       case "clearInk": return this.patchCard(id, { strokes: _del });
-      case "connect": return this.beginConnect(id);
+      case "connect": return this.beginConnect(id, { pin: this.#menuPin });
       case "category": return openCategoryPicker(this.scene, id, this.#menuAt.x, this.#menuAt.y);
       case "unlink": return this.deleteLinks(linksOf(boardLinks(this.scene), [id]).map(l => l.id));
       case "rename": return this.#rename(card);
@@ -930,10 +1065,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       case "back": return this.patchCard(id, { sort: bottomSort(cards) });
       case "hide": return this.patchCard(id, { hidden: !card.hidden });
       case "lock": return this.patchCard(id, { locked: !card.locked });
-      case "delete": return this.deleteCards([id]);
-      case "unplace":
-        this.select(null);
-        return removeCards(this.scene, [id]);
+      case "remove": return this.deleteCards([id]);
       case "addJournal": return linkCardToJournal(this.scene, id);
     }
   }

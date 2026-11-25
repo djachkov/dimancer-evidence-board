@@ -1,6 +1,6 @@
 import { MODULE_ID, t } from "./constants.mjs";
 import { cardDelete, cardUpdate, isEvidence } from "./cards.mjs";
-import { linkDelete, linksOf } from "./links.mjs";
+import { linkDelete, linksOf, orphanPinsUpdate } from "./links.mjs";
 import { boardCards, boardLinks, canEditBoard, canEditCard, getCard, isBoard } from "./permissions.mjs";
 import {
   EVIDENCE_TYPE, LEVELS, accessUpdate, evidencePageData, isPageHidden, journalOrder, pageItem, placementIndex
@@ -103,8 +103,9 @@ export async function setPageHidden(page, hidden) {
 /** Remove cards from a board scene, with their threads, in one update. */
 export async function removeCards(scene, cardIds) {
   if ( !cardIds.length ) return;
-  const threads = linksOf(boardLinks(scene), cardIds).map(l => l.id);
-  await scene.update({ ...cardDelete(cardIds, _del), ...linkDelete(threads, _del) });
+  const links = boardLinks(scene);
+  const threads = linksOf(links, cardIds).map(l => l.id);
+  await scene.update({ ...orphanPinsUpdate(links, threads, _del, cardIds), ...cardDelete(cardIds, _del), ...linkDelete(threads, _del) });
 }
 
 /** The cards on any board this user can edit that show a page, grouped by scene. */

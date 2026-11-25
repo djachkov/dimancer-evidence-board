@@ -41,7 +41,7 @@ cork and paper images are CC0 textures from ambientCG (see `assets/surfaces/SOUR
 | Resize it | Select it, then drag the orange corner handle |
 | Open it in the Evidence Journal | Double-click |
 | Rename, change order, delete; hide or lock (GM) | Right-click |
-| Delete the selected card | Delete key |
+| Take the selected card off the board | Delete key, or right-click → **Remove from the Board** |
 
 **Threads** connect evidence pin to pin, like yarn on a corkboard:
 
@@ -51,9 +51,19 @@ cork and paper images are CC0 textures from ambientCG (see `assets/surfaces/SOUR
 | Connect several, quickly | Pick the **Connect** tool (link icon) in the board toolbar, then click one card and then another, or drag from one onto the other |
 | Recolour or cut a thread | Right-click the thread |
 | Remove all of a card's threads | Right-click the card → **Remove threads** |
+| Move a pin | Drag the pin (Select tool; it's ringed under the pointer when it can move). Its threads follow |
+| Merge two pins | Drag one onto another on the same card (both ringed green): one pin holds both pins' threads |
+| Tie to an existing pin | Click (or drop) on the pin: the thread snaps to it, ringed |
+| Tie to a new pin | Click (or drop) anywhere else on the card: a pin is pushed in right there |
+| Move a thread's end | Drag the yarn: the end nearer where you grabbed comes off its pin. Drop it on a pin, or anywhere on a card for a new pin (not on the card at its other end); dropped elsewhere it springs back |
+
+A card's own pin sits top centre until moved. Starting a thread with **Connect to…** uses the pin
+you right-clicked, or the card's own pin. Pins made for threads go away when their last thread is
+cut or moved away. A locked card's pins don't move, and only someone who can edit a card can add a
+pin to it (otherwise the thread takes its own pin). Near a pin, the yarn lets the pin take the mouse.
 
 Threads follow cards as they move, including while someone else is dragging. A pair of cards can
-only be connected once, and deleting a card cuts its threads. Threads to a hidden card are hidden
+only be connected once, and removing a card cuts its threads. Threads to a hidden card are hidden
 from players too.
 
 **Stickers** are for your own thinking on the board: sticky notes with text, and freehand drawing.
@@ -104,9 +114,10 @@ branch, the separate evidence viewer.)
   journal (image and page buttons) is *not* put on a board. A GM's starts **Hidden**; a player's is
   visible.
 - **Back and forth.** Drag a row from the journal onto a board, or use **Place on …**, to pin it
-  there (the same evidence, not a copy). A card's right-click → **Move to journal** takes it off the
-  board and leaves it in the journal. Deleting a linked card asks whether to only take it off the
-  board or delete the evidence everywhere.
+  there (the same evidence, not a copy). **Remove from the Board** (or the Delete key) only takes
+  evidence off the board: it stays in the journal, and evidence that wasn't in it yet is added
+  first. Evidence is deleted for good only from the journal. Stickers aren't evidence, so removing
+  one deletes it.
 - **Find it on its boards.** Each item lists the boards it's pinned on. Click one (or double-click
   the row) to go there: the board opens and the card is selected and flashes.
 - **Access is one switch** (GM): **Hidden from players / Revealed to players**. Hidden evidence
@@ -198,8 +209,10 @@ Card data shape (`scripts/cards.mjs`) and thread data shape (`scripts/links.mjs`
 `flags.dimancer_board.links.<id>`):
 
 ```js
-{ id, src, x, y, width, height, rotation, sort, title, notes, hidden, locked, link, author, created }
-{ id, from, to, color, author, created }   // undirected; one per pair of cards
+{ id, src, x, y, width, height, rotation, sort, title, notes, hidden, locked, link, author, created, pins }
+{ id, from, to, fromPin, toPin, color, author, created }   // undirected; one per pair of cards
+// pins: { [pinId]: { x, y } } as fractions (0–1) of the card's paper; "main" is the card's own pin
+// (top centre when absent). A thread's fromPin/toPin name a pin on each end ("main" by default).
 ```
 
 Cards also have a `kind`: `"image"` (evidence), `"note"` or `"sketch"` (`scripts/stickers.mjs`). A

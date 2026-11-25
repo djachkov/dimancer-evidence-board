@@ -7,12 +7,14 @@
  * @property {string} id
  * @property {string} from     Card id
  * @property {string} to       Card id
+ * @property {string} fromPin  Pin on the `from` card it hangs from (MAIN_PIN = the card's own pin)
+ * @property {string} toPin    Pin on the `to` card
  * @property {string} color    CSS hex colour
  * @property {string|null} author
  * @property {number} created
  */
 
-import { FLAG_LINKS } from "./constants.mjs";
+import { FLAG_CARDS, FLAG_LINKS } from "./constants.mjs";
 
 /** Thread colours offered in the thread menu; the first is the default red yarn. */
 export const THREAD_COLORS = Object.freeze([
@@ -26,6 +28,9 @@ export const DEFAULT_THREAD_COLOR = THREAD_COLORS[0].color;
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+/** Every card has this pin (its push-pin, top centre unless moved); other pins exist for threads. */
+export const MAIN_PIN = "main";
+
 /** @returns {Link|null}  null when the entry can't be a thread (missing or identical ends) */
 export function normalizeLink(raw, id) {
   if ( !raw || (typeof raw !== "object") ) return null;
@@ -35,6 +40,8 @@ export function normalizeLink(raw, id) {
   return {
     id: String(id ?? raw.id ?? ""),
     from, to,
+    fromPin: raw.fromPin ? String(raw.fromPin) : MAIN_PIN,
+    toPin: raw.toPin ? String(raw.toPin) : MAIN_PIN,
     color: HEX.test(raw.color ?? "") ? raw.color : DEFAULT_THREAD_COLOR,
     author: raw.author ? String(raw.author) : null,
     created: Number.isFinite(raw.created) ? raw.created : 0
@@ -61,6 +68,48 @@ export function linksOf(links, cardIds) {
 /** The card at the other end of a thread. */
 export const otherEnd = (link, cardId) => (link.from === cardId ? link.to : link.from);
 
+/** The pin a thread hangs from on one of its cards. */
+export const pinOf = (link, cardId) => (link.from === cardId ? link.fromPin : link.toPin);
+
+/** Ids of a card's pins that threads hang from (MAIN_PIN included when one does). */
+export function usedPins(links, cardId) {
+  return new Set(linksOf(links, [cardId]).map(l => pinOf(l, cardId)));
+}
+
+/**
+ * The extra pins that removing some threads leaves without any thread, as {cardId: [pinId]}.
+ * A card's main pin is never orphaned.
+ */
+export function orphanedPins(links, removedIds) {
+  const removed = new Set(removedIds);
+  const all = linkList(links);
+  const kept = all.filter(l => !removed.has(l.id));
+  const out = {};
+  for ( const l of all.filter(l => removed.has(l.id)) ) {
+    for ( const [card, pin] of [[l.from, l.fromPin], [l.to, l.toPin]] ) {
+      if ( pin === MAIN_PIN ) continue;
+      if ( kept.some(k => pinOf(k, card) === pin && ((k.from === card) || (k.to === card))) ) continue;
+      (out[card] ??= []);
+      if ( !out[card].includes(pin) ) out[card].push(pin);
+    }
+  }
+  return out;
+}
+
+/**
+ * A Scene update removing the pins that cutting these threads leaves without a thread.
+ * @param {unknown} deletion  Foundry's deletion operator (the global `_del`)
+ * @param {string[]} [skipCards]  Cards being deleted in the same update
+ */
+export function orphanPinsUpdate(links, removedIds, deletion, skipCards = []) {
+  const update = {};
+  for ( const [card, pins] of Object.entries(orphanedPins(links, removedIds)) ) {
+    if ( skipCards.includes(card) ) continue;
+    for ( const pin of pins ) update[`${FLAG_CARDS}.${card}.pins.${pin}`] = deletion;
+  }
+  return update;
+}
+
 /** Threads whose both ends are among the visible cards. */
 export function visibleLinks(links, visibleIds) {
   const ids = new Set(visibleIds);
@@ -68,8 +117,8 @@ export function visibleLinks(links, visibleIds) {
 }
 
 /** Build a new thread. */
-export function newLink({ id, from, to, color = DEFAULT_THREAD_COLOR, author = null, created = 0 }) {
-  return normalizeLink({ id, from, to, color, author, created }, id);
+export function newLink({ id, from, to, fromPin = MAIN_PIN, toPin = MAIN_PIN, color = DEFAULT_THREAD_COLOR, author = null, created = 0 }) {
+  return normalizeLink({ id, from, to, fromPin, toPin, color, author, created }, id);
 }
 
 /* -------------------------------------------- */

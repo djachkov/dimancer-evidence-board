@@ -30,6 +30,9 @@
  * @property {string|null} color   A note's paper colour
  * @property {{x: number, y: number, w: number, h: number}} view  Stroke space shown (see stickers.mjs)
  * @property {Record<string, object>} strokes  Freehand ink on a note or sketch
+ * @property {Record<string, {x: number, y: number}>} pins  Where its pins sit, as fractions (0–1) of
+ *   the paper's width and height from its top-left corner. "main" is the card's own push-pin (top
+ *   centre when absent); any other pin was made for a thread.
  */
 
 import { FLAG_CARDS, NEW_CARD_SIZE } from "./constants.mjs";
@@ -41,7 +44,7 @@ export const MAX_CARD_SIZE = 4000;
 export const CARD_DEFAULTS = Object.freeze({
   id: "", src: "", x: 0, y: 0, width: NEW_CARD_SIZE, height: NEW_CARD_SIZE, rotation: 0, sort: 0,
   title: "", notes: "", hidden: false, locked: false, link: null, category: null, folder: null, author: null, created: 0,
-  kind: "image", text: "", color: null, view: null, strokes: null, page: null, docPages: null
+  kind: "image", text: "", color: null, view: null, strokes: null, pins: null, page: null, docPages: null
 });
 
 const KINDS = ["image", "document", "note", "sketch"];
@@ -89,6 +92,7 @@ export function normalizeCard(raw = {}, id) {
   card.color = HEX.test(c.color ?? "") ? c.color : null;
   card.view = normalizeView(c.view, card);
   card.strokes = normalizeStrokes(c.strokes);
+  card.pins = normalizePins(c.pins);
   // The Evidence Journal page this card shows (its UUID), when it's linked to one.
   card.page = isEvidence(card) && (typeof c.page === "string") && c.page ? c.page : null;
   card.docPages = (card.kind === "document") ? normalizeDocPages(c.docPages) : [];
@@ -98,6 +102,17 @@ export function normalizeCard(raw = {}, id) {
 /** A text document's pages: HTML strings (anything else dropped). */
 export function normalizeDocPages(raw) {
   return Array.isArray(raw) ? raw.filter(p => typeof p === "string") : [];
+}
+
+/** Pins by id, as fractions clamped onto the paper; invalid ones dropped. */
+export function normalizePins(raw) {
+  const out = {};
+  if ( !raw || (typeof raw !== "object") ) return out;
+  for ( const [id, p] of Object.entries(raw) ) {
+    if ( !p || !Number.isFinite(p.x) || !Number.isFinite(p.y) ) continue;
+    out[id] = { x: clamp(p.x, 0, 1), y: clamp(p.y, 0, 1) };
+  }
+  return out;
 }
 
 /** A valid stroke, or null. */

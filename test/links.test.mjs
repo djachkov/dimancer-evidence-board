@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeLink, linkList, linkBetween, linksOf, otherEnd, visibleLinks, newLink, linkCreate, linkUpdate, linkDelete,
-  sagControl, sampleCurve, strokePolygon, DEFAULT_THREAD_COLOR
+  sagControl, sampleCurve, strokePolygon, DEFAULT_THREAD_COLOR, MAIN_PIN, pinOf, usedPins, orphanedPins, orphanPinsUpdate
 } from "../scripts/links.mjs";
 
 const links = {
@@ -67,4 +67,33 @@ test("strokePolygon surrounds a straight line by the half-width", () => {
   // left side (y = +2) forward, right side (y = -2) back
   assert.deepEqual(poly, [0, 2, 10, 2, 10, -2, 0, -2]);
   assert.deepEqual(strokePolygon([{ x: 0, y: 0 }], 2), []);
+});
+
+test("threads hang from the main pin unless they name another", () => {
+  const l = normalizeLink({ from: "a", to: "b", toPin: "p1" }, "k");
+  assert.equal(l.fromPin, MAIN_PIN);
+  assert.equal(l.toPin, "p1");
+  assert.equal(pinOf(l, "a"), MAIN_PIN);
+  assert.equal(pinOf(l, "b"), "p1");
+  assert.equal(newLink({ id: "n", from: "a", to: "b", fromPin: "q" }).fromPin, "q");
+});
+
+test("usedPins and orphanedPins", () => {
+  const pinned = {
+    ab: { from: "a", to: "b", fromPin: "p1", created: 1 },
+    ac: { from: "a", to: "c", fromPin: "p1", toPin: "p2", created: 2 },
+    cb: { from: "c", to: "b", fromPin: "p3", created: 3 }
+  };
+  assert.deepEqual([...usedPins(pinned, "a")], ["p1"]);
+  assert.deepEqual([...usedPins(pinned, "b")], [MAIN_PIN]);
+  assert.deepEqual(orphanedPins(pinned, ["ab"]), {}, "p1 still holds the thread to c");
+  assert.deepEqual(orphanedPins(pinned, ["ab", "ac"]), { a: ["p1"], c: ["p2"] });
+  assert.deepEqual(orphanedPins(pinned, ["cb"]), { c: ["p3"] }, "main pins are never orphaned");
+});
+
+test("orphanPinsUpdate deletes orphaned pins, skipping cards deleted alongside", () => {
+  const pinned = { ab: { from: "a", to: "b", fromPin: "p1", toPin: "p2", created: 1 } };
+  assert.deepEqual(orphanPinsUpdate(pinned, ["ab"], "DEL"),
+    { "flags.dimancer_board.cards.a.pins.p1": "DEL", "flags.dimancer_board.cards.b.pins.p2": "DEL" });
+  assert.deepEqual(orphanPinsUpdate(pinned, ["ab"], "DEL", ["a"]), { "flags.dimancer_board.cards.b.pins.p2": "DEL" });
 });
