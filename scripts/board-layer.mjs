@@ -11,6 +11,7 @@ import { openAddEvidence } from "./add-evidence.mjs";
 import { imageSize } from "./uploads.mjs";
 import { PdfViewer, isPdfDocument, pdfCardSize } from "./pdf-preview.mjs";
 import { closeMenu, menuItems, showMenu } from "./menu.mjs";
+import { focusCardForEveryone } from "./focus.mjs";
 import { categoriesOf, openCategoryPicker } from "./organize-actions.mjs";
 import {
   INK_COLORS, NOTE_COLORS, NOTE_MAX_TEXT, cardLabel, noteSizeFor, localToView, newNote, newSketch, simplifyPoints,
@@ -843,6 +844,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     const items = [
       isEvidence(card) && { action: "view", icon: "fa-book-open", label: t("Journal.ShowInJournal") },
       isPdfDocument(card) && { action: "readPdf", icon: "fa-book-open-reader", label: t("Journal.ReadPdf") },
+      gm && { action: "everyone", icon: "fa-people-arrows", label: t("Card.Everyone") },
       (kind === "note") && editable && { action: "edit", icon: "fa-i-cursor", label: t("Sticker.Edit") },
       boardEditable && (this.cards.size > 1) && { action: "connect", icon: "fa-link", label: t("Card.Connect") },
       boardEditable && threadCount && { action: "unlink", icon: "fa-link-slash", label: t("Card.Unlink", { count: threadCount }) },
@@ -910,6 +912,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     const cards = boardCards(this.scene);
     switch ( action ) {
       case "view": return this.openInJournal(id);
+      case "everyone": return focusCardForEveryone(this.scene, id);
       case "readPdf": return PdfViewer.open({ src: card.src, title: card.title || t("Document.Untitled"), key: pageOfCard(card)?.id ?? card.id });
       case "edit": return this.editNote(id);
       case "paper": return this.patchCard(id, { color: button.dataset.color });
