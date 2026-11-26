@@ -1,4 +1,4 @@
-import { MODULE_ID, BOARD_DEFAULTS, TEMPLATES, t } from "./constants.mjs";
+import { MODULE_ID, BOARD_DEFAULTS, DEFAULT_THUMB, TEMPLATES, t } from "./constants.mjs";
 import { isBoard, boardSettings } from "./permissions.mjs";
 import { DEFAULT_SURFACE, defaultFrameColor, getSurface, surfaceFlag, validColor } from "./surface-presets.mjs";
 import { boardStyle, registerSurfaceHooks, surfaceChoices, surfaceOf } from "./surfaces.mjs";
@@ -7,6 +7,49 @@ import { promptNewBoard, registerCreateDefaults, setPlaceholderColor } from "./c
 import { getEvidenceJournal, openEvidenceJournal } from "./journal-store.mjs";
 
 const OWNER = () => CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
+
+/* -------------------------------------------- */
+/*  Thumbnails                                  */
+/* -------------------------------------------- */
+
+/** Core appends "?<timestamp>" to a thumb it has just changed. */
+const isDefaultThumb = thumb => !!thumb && (thumb.split("?")[0] === DEFAULT_THUMB);
+
+/** Whether any of the scene's Levels has a background image, which core can make a thumbnail of. */
+const hasBackground = scene => !!scene.levels?.some(l => l.background?.src);
+
+/** Core's thumbnail of the scene's background and tiles, or null if it can't make one here. */
+async function generateThumb(scene) {
+  if ( game.settings.get("core", "noCanvas") || !hasBackground(scene) ) return null;
+  const level = scene.initialLevel?.background?.src ? scene.initialLevel : scene.levels.find(l => l.background?.src);
+  try {
+    return (await scene.createThumbnail({ level })).thumb;
+  } catch(err) {
+    console.warn(`${MODULE_ID} | thumbnail for ${scene.name}`, err);
+    return null;
+  }
+}
+
+/**
+ * A board that has only its surface gets the default thumbnail. Once it gets a background image
+ * (here or in the Scene configuration, which only makes a thumbnail for a scene without one),
+ * replace the default with core's thumbnail of it.
+ */
+async function onUpdateScene(scene, changed, options, userId) {
+  if ( (userId !== game.user.id) || !("levels" in changed) ) return;
+  if ( !isBoard(scene) || !isDefaultThumb(scene.thumb) ) return;
+  const thumb = await generateThumb(scene);
+  if ( thumb ) await scene.update({ thumb });
+}
+
+/** Boards made before thumbnails existed, with no background to make one from, get the default. */
+async function backfillThumbs() {
+  if ( game.user !== game.users.activeGM ) return;
+  const updates = game.scenes
+    .filter(s => isBoard(s) && !s.thumb && !hasBackground(s))
+    .map(s => ({ _id: s.id, thumb: DEFAULT_THUMB }));
+  if ( updates.length ) await Scene.implementation.updateDocuments(updates);
+}
 
 /**
  * Scene data for a new, empty board.
@@ -41,6 +84,8 @@ export function boardSceneData(name, {
     fog: { mode: CONST.FOG_EXPLORATION_MODES.DISABLED },
     environment: { globalLight: { enabled: true }, darknessLevel: 0 },
     navigation: true,
+    // Its surface is drawn by this module, not a Level background, so core can't make a thumbnail of it.
+    thumb: DEFAULT_THUMB,
     ownership: { default: OWNER() },
     flags: { [MODULE_ID]: { board, cards: {} } }
   };
@@ -57,9 +102,18 @@ export async function createBoard({ folder } = {}) {
   return scene;
 }
 
-/** Turn an existing scene into a board, keeping everything else about it. */
+/**
+ * Turn an existing scene into a board, keeping everything else about it. A scene with a background
+ * keeps (or gets) core's thumbnail of it, and "Generate Thumbnail" keeps working; one without
+ * gets the default thumbnail.
+ */
 export async function convertToBoard(scene) {
-  await scene.update({ [`flags.${MODULE_ID}`]: { board: { version: 1, locked: false }, cards: {} } });
+  const update = { [`flags.${MODULE_ID}`]: { board: { version: 1, locked: false }, cards: {} } };
+  if ( !scene.thumb ) {
+    const thumb = hasBackground(scene) ? await generateThumb(scene) : DEFAULT_THUMB;
+    if ( thumb ) update.thumb = thumb;
+  }
+  await scene.update(update);
   ui.notifications.info(t("Scene.Converted", { name: scene.name }));
 }
 
@@ -71,7 +125,9 @@ export async function removeBoard(scene) {
     content: `<p>${t("Scene.RemoveConfirm", { name: foundry.utils.escapeHTML(scene.name), count })}</p>`
   });
   if ( !ok ) return;
-  await scene.update({ [`flags.${MODULE_ID}`]: _del });
+  const update = { [`flags.${MODULE_ID}`]: _del };
+  if ( isDefaultThumb(scene.thumb) ) update.thumb = null;
+  await scene.update(update);
 }
 
 /* -------------------------------------------- */
@@ -162,4 +218,6 @@ export function registerSceneHooks() {
   Hooks.on("renderJournalDirectory", onRenderJournalDirectory);
   Hooks.on("getSceneContextOptions", onGetSceneContextOptions);
   Hooks.on("renderSceneConfig", onRenderSceneConfig);
+  Hooks.on("updateScene", onUpdateScene);
+  Hooks.once("ready", backfillThumbs);
 }

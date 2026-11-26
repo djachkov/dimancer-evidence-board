@@ -10,6 +10,13 @@ piece in a shared Evidence Journal with notes.
 scene → **Turn into Evidence Board**. A new board is a gridless scene that shows in the navigation
 bar. Players can edit it (its Accessibility is *Owner*).
 
+**Thumbnails.** A board's surface is drawn by the module, not as a scene background, so core can't
+make a sidebar thumbnail of it. A board made from scratch, or from a scene without a background
+image, gets a default cork-board thumbnail. A scene with a background keeps its own thumbnail when
+you turn it into a board (one is made if it had none), and core's **Generate Thumbnail** works on it
+as usual. When a board gets a background image later, its default thumbnail is replaced with core's
+thumbnail of that background. Removing the board clears the default thumbnail.
+
 **Choose its look** when you create it. Pick a surface from the list: cork (fine, classic or coarse),
 whiteboard, chalkboard, green or burgundy felt, kraft paper, wooden planks (a quest board), a cyber
 grid, or a plain colour of your own. Then pick a

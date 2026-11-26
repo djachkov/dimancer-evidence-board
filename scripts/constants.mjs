@@ -19,6 +19,9 @@ export const BOARD_DEFAULTS = Object.freeze({
   surround: "#3b3633"
 });
 
+/** The sidebar thumbnail of a board without a background image to make one from. */
+export const DEFAULT_THUMB = `modules/${MODULE_ID}/assets/board-thumb.webp`;
+
 /** Long side, in scene pixels, of a newly pinned image. */
 export const NEW_CARD_SIZE = 300;
 
