@@ -59,6 +59,9 @@ pins, flickers the lanterns and sweeps a scanline down a cyber board.
 | Open it in the Evidence Journal | Double-click |
 | Rename, change order, delete; hide or lock (GM) | Right-click |
 | Take the selected card off the board | Delete key, or right-click → **Remove from the Board** |
+| Select several cards | Shift-click (or Ctrl-click) each one, or drag a box on the empty board: it picks the cards whose centre is inside. Shift + box adds to the selection. Ctrl+A selects every card you can edit; Esc or a click on the empty board lets go |
+| Move several at once | Drag any of the selected cards: the rest follow, keep their places relative to each other and come to the front. Locked cards stay put |
+| Act on several at once | Right-click one of the selected cards: category, front/back, hide or lock (GM), and **Remove from the Board** for all of them. Delete removes them too |
 
 **Threads** connect evidence pin to pin, like yarn on a corkboard:
 

@@ -32,11 +32,13 @@ Hooks.once("ready", () => {
   foundry.applications.handlebars.loadTemplates(Object.values(TEMPLATES));
   registerSocket();
   registerPaste();
-  onSocket("drag", ({ sceneId, cardId, x, y, width, height }) => {
-    if ( canvas.scene?.id === sceneId ) canvas.board?.onRemoteDrag(cardId, { x, y, width, height });
+  onSocket("drag", ({ sceneId, cards }) => {
+    if ( (canvas.scene?.id !== sceneId) || !Array.isArray(cards) ) return;
+    for ( const { id, x, y, width, height } of cards ) canvas.board?.onRemoteDrag(id, { x, y, width, height });
   });
-  onSocket("dragEnd", ({ sceneId, cardId }) => {
-    if ( canvas.scene?.id === sceneId ) canvas.board?.onRemoteDrag(cardId, null);
+  onSocket("dragEnd", ({ sceneId, ids }) => {
+    if ( (canvas.scene?.id !== sceneId) || !Array.isArray(ids) ) return;
+    for ( const id of ids ) canvas.board?.onRemoteDrag(id, null);
   });
   onSocket("focus", ({ sceneId, cardId, users }, senderId) => {
     if ( !game.users.get(senderId)?.isGM ) return;

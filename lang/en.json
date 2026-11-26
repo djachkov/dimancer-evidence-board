@@ -2,7 +2,7 @@
   "DIMANCER_BOARD": {
     "Controls": {
       "Group": "Evidence Board",
-      "Select": "Select and move evidence",
+      "Select": "Select and move evidence (Shift-click or drag a box to select several)",
       "Add": "Pin evidence",
       "Document": "New text document",
       "Lock": "Lock the board",
@@ -86,6 +86,11 @@
       "DeleteOthers": "Delete <strong>{title}</strong>? Someone else pinned it.",
       "HiddenBadge": "HIDDEN",
       "LockedBadge": "LOCKED"
+    },
+    "Selection": {
+      "Count": "{count} selected",
+      "Clear": "Deselect",
+      "Remove": "Remove {count} from the Board"
     },
     "List": {
       "View": "View",

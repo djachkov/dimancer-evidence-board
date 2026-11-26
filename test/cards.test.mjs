@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeCard, fitSize, newCard, cardList, topSort, bottomSort, isTop, orderedCards, neighbours,
-  clampToRect, cardUpdate, cardCreate, cardDelete, MIN_CARD_SIZE, A4, isEvidence, normalizePins
+  clampToRect, cardUpdate, cardCreate, cardDelete, MIN_CARD_SIZE, A4, isEvidence, normalizePins,
+  clampGroupDelta, stackSorts, centreInRect
 } from "../scripts/cards.mjs";
 
 const card = (id, x, y, extra = {}) => ({ id, src: `${id}.png`, x, y, width: 100, height: 100, ...extra });
@@ -115,4 +116,37 @@ test("normalizePins clamps pins onto the paper and drops junk", () => {
   assert.deepEqual(normalizePins({ main: { x: 0.5, y: -1 }, p: { x: 2, y: 0.25 }, bad: { x: "1" }, nil: null }),
     { main: { x: 0.5, y: 0 }, p: { x: 1, y: 0.25 } });
   assert.deepEqual(normalizeCard({}, "c").pins, {});
+});
+
+test("clampGroupDelta stops the whole group at the edge the first card reaches", () => {
+  const rect = { x: 0, y: 0, width: 1000, height: 1000 };
+  const group = [card("a", 100, 100), card("b", 700, 400)];
+  assert.deepEqual(clampGroupDelta(group, 50, -20, rect), { dx: 50, dy: -20 }, "a move inside is untouched");
+  // b's centre (750) may go to 1000: +250; a's centre (150) may go to 0: -150
+  assert.deepEqual(clampGroupDelta(group, 900, -900, rect), { dx: 250, dy: -150 });
+});
+
+test("clampGroupDelta never pushes a group further than asked when a card is already outside", () => {
+  const rect = { x: 0, y: 0, width: 1000, height: 1000 };
+  const group = [card("a", -300, 100), card("b", 400, 400)];
+  assert.deepEqual(clampGroupDelta(group, 0, 0, rect), { dx: 0, dy: 0 });
+  assert.deepEqual(clampGroupDelta(group, -50, 0, rect), { dx: 0, dy: 0 }, "it can't go further out");
+  assert.deepEqual(clampGroupDelta(group, 100, 0, rect), { dx: 100, dy: 0 }, "it can come back in");
+});
+
+test("stackSorts brings cards to the front or back keeping their order", () => {
+  const cards = board(card("a", 0, 0, { sort: 1 }), card("b", 0, 0, { sort: 2 }), card("c", 0, 0, { sort: 3 }), card("d", 0, 0, { sort: 4 }));
+  assert.deepEqual(stackSorts(cards, ["c", "a"]), { a: 5, c: 6 });
+  assert.deepEqual(stackSorts(cards, ["c", "b"], "back"), { b: -1, c: 0 });
+  assert.deepEqual(stackSorts(cards, ["d", "c"]), {}, "already on top, in order");
+  assert.deepEqual(stackSorts(cards, ["a", "b"], "back"), {}, "already at the bottom");
+  assert.deepEqual(stackSorts(cards, ["zz"]), {}, "unknown ids are ignored");
+  assert.deepEqual(stackSorts(cards, ["a", "b", "c", "d"]), {}, "everything is already in place");
+});
+
+test("centreInRect checks the card's centre", () => {
+  const rect = { x: 10, y: 10, width: 100, height: 100 };
+  assert.equal(centreInRect({ x: 60, y: 60 }, rect), true);
+  assert.equal(centreInRect({ x: 5, y: 60 }, rect), false);
+  assert.equal(centreInRect({ x: 110, y: 110 }, rect), true, "the edge counts");
 });

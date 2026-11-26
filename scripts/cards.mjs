@@ -258,6 +258,67 @@ export function clampToRect(card, rect) {
 }
 
 /**
+ * How far a group of cards moved together may go: the move (dx, dy), cut short so every card stays
+ * within the rectangle as clampToRect keeps one card (its centre inside). The group keeps its shape.
+ * A card already outside never forces the group to move further than asked.
+ * @param {{x: number, y: number, width: number, height: number}[]} cards  Where they start
+ * @param {number} dx
+ * @param {number} dy
+ * @param {{x: number, y: number, width: number, height: number}} rect
+ * @returns {{dx: number, dy: number}}
+ */
+export function clampGroupDelta(cards, dx, dy, rect) {
+  let [loX, hiX, loY, hiY] = [-Infinity, Infinity, -Infinity, Infinity];
+  for ( const c of cards ) {
+    const cx = c.x + (c.width / 2);
+    const cy = c.y + (c.height / 2);
+    loX = Math.max(loX, rect.x - cx);
+    hiX = Math.min(hiX, rect.x + rect.width - cx);
+    loY = Math.max(loY, rect.y - cy);
+    hiY = Math.min(hiY, rect.y + rect.height - cy);
+  }
+  return {
+    dx: Math.round(clamp(dx, Math.min(loX, 0), Math.max(hiX, 0))),
+    dy: Math.round(clamp(dy, Math.min(loY, 0), Math.max(hiY, 0)))
+  };
+}
+
+/**
+ * Sort values that bring some cards above (or below) all the others, keeping their order among
+ * themselves. Cards already there in that order are left out, so nothing is written for them.
+ * @param {Record<string, Card>} cards
+ * @param {string[]} ids
+ * @param {"front"|"back"} [where]
+ * @returns {Record<string, number>}  id → sort
+ */
+export function stackSorts(cards, ids, where = "front") {
+  const list = cardList(cards);
+  const wanted = new Set(ids);
+  const moving = list.filter(c => wanted.has(c.id));
+  if ( !moving.length ) return {};
+  const rest = list.filter(c => !wanted.has(c.id));
+  const front = where === "front";
+  // Already stacked there: the moving cards are the top (or bottom) ones, in a row.
+  const edge = front ? list.slice(-moving.length) : list.slice(0, moving.length);
+  if ( edge.every((c, i) => c.id === moving[i].id) ) return {};
+  const start = front
+    ? (rest.length ? Math.max(...rest.map(c => c.sort)) + 1 : 0)
+    : (rest.length ? Math.min(...rest.map(c => c.sort)) - moving.length : 0);
+  return Object.fromEntries(moving.map((c, i) => [c.id, start + i]));
+}
+
+/**
+ * Does a card's rotated paper have its centre inside a rectangle? Used by the selection box, as
+ * core selects tokens: a big card the box only grazes stays out.
+ * @param {{x: number, y: number}} centre  The card's centre in canvas coordinates
+ * @param {{x: number, y: number, width: number, height: number}} rect
+ */
+export function centreInRect(centre, rect) {
+  return (centre.x >= rect.x) && (centre.x <= rect.x + rect.width)
+    && (centre.y >= rect.y) && (centre.y <= rect.y + rect.height);
+}
+
+/**
  * A Scene update that creates or patches one card. Each field gets its own dotted key, so two
  * users editing different fields (or different cards) never overwrite each other.
  * @param {string} id

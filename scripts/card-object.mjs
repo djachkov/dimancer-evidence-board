@@ -147,7 +147,18 @@ export default class CardObject extends PIXI.Container {
   }
 
   get selected() {
-    return this.layer.selectedId === this.id;
+    return this.layer.isSelected(this.id);
+  }
+
+  /** The resize handle shows on a card selected on its own that can be resized. */
+  get showsHandle() {
+    return this.selected && !this.layer.multiSelected && this.movable;
+  }
+
+  /** The centre of the card's image in canvas coordinates, for the geometry shown right now. */
+  get centre() {
+    const g = this.preview ?? this.card;
+    return { x: g.x + (g.width / 2), y: g.y + (g.height / 2) };
   }
 
   get editable() {
@@ -250,8 +261,9 @@ export default class CardObject extends PIXI.Container {
     this.angle = this.card.rotation;
     // A card being moved or resized is lifted above the other cards, but stays under the threads
     // (they hang from its pins). Dragging one of its pins or pulling a thread out of it leaves it put.
+    // A group being moved keeps its stacking order among itself.
     const lifted = ["move", "resize"].includes(this.dragging?.mode);
-    this.zIndex = lifted ? Number.MAX_SAFE_INTEGER - 2 : this.card.sort;
+    this.zIndex = lifted ? 1e12 + this.card.sort : this.card.sort;
     this.alpha = this.card.hidden ? 0.55 : 1;
 
     const painter = this.painter;
@@ -343,7 +355,7 @@ export default class CardObject extends PIXI.Container {
         .drawRect(left - lw, top - lw, fw + (2 * lw), fh + (2 * lw));
     }
     this.handle.clear();
-    const showHandle = this.selected && this.movable;
+    const showHandle = this.showsHandle;
     if ( showHandle ) {
       this.handle.lineStyle(lw, 0x000000, 0.8).beginFill(SELECT_COLOR)
         .drawCircle(left + fw, top + fh, handleR).endFill();
@@ -624,7 +636,7 @@ export default class CardObject extends PIXI.Container {
 
   /** Is a local-space point on the resize handle? */
   #onHandle(local) {
-    if ( !this.selected || !this.editable ) return false;
+    if ( !this.showsHandle ) return false;
     const L = this.layout();
     return Math.hypot(local.x - (L.left + L.fw), local.y - (L.top + L.fh)) <= L.handleR * 1.6;
   }
@@ -688,6 +700,23 @@ export default class CardObject extends PIXI.Container {
       this.layer.beginConnect(this.id, this.anchorAt(event.interactionData?.origin ?? event.getLocalPosition(canvas.stage)));
       return;
     }
+    // Shift (or Ctrl/Cmd) adds the card to the selection or takes it out.
+    const ne = event.nativeEvent ?? event;
+    if ( event.shiftKey || event.ctrlKey || event.metaKey || ne.shiftKey || ne.ctrlKey || ne.metaKey ) {
+      if ( !this.editable ) return false;
+      // A card just taken out of the selection isn't dragged from this press.
+      return this.layer.toggleSelect(this.id) ? undefined : false;
+    }
+    if ( this.selected && this.layer.multiSelected ) {
+      // Pressing one of several selected cards keeps them all, so a drag moves the group; a plain
+      // click (released without dragging) selects just this card.
+      this.#collapseOnUp = true;
+      window.addEventListener("pointerup", () => {
+        if ( this.#collapseOnUp && !this.destroyed ) this.layer.select(this.id);
+        this.#collapseOnUp = false;
+      }, { once: true });
+      return;
+    }
     this.layer.select(this.editable ? this.id : null);
     // Set the cursor for a possible resize, which starts from this press
     if ( this.movable && this.#onHandle(event.getLocalPosition(this)) ) this.cursor = "nwse-resize";
@@ -698,14 +727,19 @@ export default class CardObject extends PIXI.Container {
     this.layer.openCard(this.id);
   }
 
+  /** Set by a press on one of several selected cards; a drag clears it. */
+  #collapseOnUp = false;
+
   #onClickRight(event) {
     event.stopPropagation();
-    if ( this.editable ) this.layer.select(this.id);
+    // Right-clicking one of several selected cards opens the menu for all of them.
+    if ( this.editable && !this.selected ) this.layer.select(this.id);
     this.layer.openMenu(this, event);
   }
 
   #onDragLeftStart(event) {
     this.layer.closeMenu();
+    this.#collapseOnUp = false;
     if ( this.layer.isConnectTool ) {
       if ( this.layer.connecting?.fromId !== this.id ) this.layer.beginConnect(this.id, this.anchorAt(event.interactionData.origin));
       this.dragging = { mode: "connect" };
@@ -731,6 +765,36 @@ export default class CardObject extends PIXI.Container {
       origin: { x: origin.x, y: origin.y }
     };
     this.preview = { ...this.dragging.start };
+    // One of several selected cards: the others follow it.
+    if ( this.dragging.mode === "move" ) this.dragging.group = this.layer.beginGroupMove(this).length > 0;
+    this.refresh();
+  }
+
+  /** Follow the card being dragged in a group move (see BoardLayer#beginGroupMove). */
+  follow() {
+    const g = this.card;
+    this.dragging = { mode: "move", follower: true, start: { x: g.x, y: g.y, width: g.width, height: g.height } };
+    this.preview = { ...this.dragging.start };
+    this.refresh();
+  }
+
+  /** Show the follower moved by an offset from where the group move started. */
+  followBy(dx, dy) {
+    if ( !this.dragging?.follower ) return;
+    const s = this.dragging.start;
+    this.preview = { ...s, x: s.x + dx, y: s.y + dy };
+    this.refresh();
+  }
+
+  /**
+   * The group move is over. A dropped card stays shown where it landed until the saved position
+   * arrives; a cancelled one snaps back.
+   */
+  endFollow({ dx = 0, dy = 0, keep = false } = {}) {
+    if ( this.destroyed ) return;
+    const s = this.dragging?.start ?? this.card;
+    this.dragging = null;
+    this.preview = keep ? { ...s, x: s.x + dx, y: s.y + dy } : null;
     this.refresh();
   }
 
@@ -740,6 +804,10 @@ export default class CardObject extends PIXI.Container {
     if ( this.dragging.mode === "pin" ) return this.#pinFrom(event.interactionData.destination);
     this.#previewFrom(event.interactionData.destination);
     this.refresh();
+    if ( this.dragging.group ) {
+      const { start } = this.dragging;
+      this.layer.moveGroup(this.preview.x - start.x, this.preview.y - start.y);
+    }
     this.#emitDrag();
   }
 
@@ -800,8 +868,8 @@ export default class CardObject extends PIXI.Container {
     const now = Date.now();
     if ( !force && (now - this.#lastEmit < 66) ) return;
     this.#lastEmit = now;
-    const p = this.preview;
-    this.layer.emitDrag(this.id, p);
+    if ( this.dragging?.group ) return this.layer.emitGroupDrag();
+    this.layer.emitDrag([{ id: this.id, ...this.preview }]);
   }
 
   async #onDragLeftDrop(event) {
@@ -830,6 +898,7 @@ export default class CardObject extends PIXI.Container {
     // Moves are throttled to the frame rate, so take the final position from the drop itself.
     this.#previewFrom(event.interactionData?.destination);
     const { start } = this.dragging;
+    if ( this.dragging.group ) return this.layer.dropGroup(this.preview.x - start.x, this.preview.y - start.y);
     const rect = canvas.dimensions.sceneRect;
     const next = { ...this.preview, ...clampToRect(this.preview, rect) };
     this.dragging = null;
@@ -838,7 +907,7 @@ export default class CardObject extends PIXI.Container {
     const changed = ["x", "y", "width", "height"].some(k => next[k] !== start[k]);
     if ( !changed ) {
       this.preview = null;
-      this.layer.emitDragEnd(this.id);
+      this.layer.emitDragEnd([this.id]);
       return;
     }
     await this.layer.commitGeometry(this.id, next);
@@ -851,11 +920,13 @@ export default class CardObject extends PIXI.Container {
       this.dragging = null;
       return this.layer.cancelConnect();
     }
+    const group = this.dragging.group;
     this.dragging = null;
     this.preview = this.pinPreview = null;
     this.cursor = this.editable ? "pointer" : "zoom-in";
     this.refresh();
-    this.layer.emitDragEnd(this.id);
+    if ( group ) this.layer.cancelGroup();
+    else this.layer.emitDragEnd([this.id]);
   }
 
   /** Show another user's in-progress drag. */

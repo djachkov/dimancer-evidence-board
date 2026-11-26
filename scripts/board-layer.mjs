@@ -1,6 +1,7 @@
 import { FLAG_BOARD, t } from "./constants.mjs";
 import {
-  A4, cardList, cardUpdate, cardCreate, isEvidence, newCard, topSort, bottomSort, isTop, clampToRect
+  A4, cardList, cardUpdate, cardCreate, isEvidence, newCard, topSort, bottomSort, isTop, clampToRect,
+  clampGroupDelta, stackSorts, centreInRect
 } from "./cards.mjs";
 import { isBoard, boardCards, boardLinks, boardSettings, getCard, canEditBoard, canEditCard, canMoveCard, canSeeCard } from "./permissions.mjs";
 import {
@@ -45,8 +46,12 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /** @type {Map<string, CardObject>} */
   cards = new Map();
 
-  /** @type {string|null} */
-  selectedId = null;
+  /**
+   * The selected cards, by id. Only cards this user may edit get selected. One selected card shows
+   * its resize handle; several move together when one of them is dragged.
+   * @type {Set<string>}
+   */
+  selection = new Set();
 
   /** @type {Map<string, ThreadObject>} */
   threads = new Map();
@@ -187,7 +192,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     this.sortableChildren = true;
     this.cards.clear();
     this.threads.clear();
-    this.selectedId = null;
+    this.selection = new Set();
     this.connecting = null;
     this.style = null;   // refreshCards sets it, and starts any animation
     if ( !this.isBoard ) return;
@@ -212,7 +217,8 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     this.cards.clear();
     this.threads.clear();
     this.threadLayer = null;
-    this.selectedId = null;
+    this.selection = new Set();
+    this.#group = null;
     return super._tearDown(options);
   }
 
@@ -231,7 +237,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       if ( wanted.has(id) ) continue;
       this.cards.delete(id);
       obj.destroy();
-      if ( this.selectedId === id ) this.selectedId = null;
+      this.selection.delete(id);
     }
     const pending = [];
     for ( const [id, card] of wanted ) {
@@ -588,12 +594,166 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /*  Selection and events                        */
   /* -------------------------------------------- */
 
+  /** Select one card, or none, letting go of the rest. */
   select(id) {
-    if ( this.selectedId === id ) return;
-    const prev = this.cards.get(this.selectedId);
-    this.selectedId = id;
-    prev?.refresh();
-    this.cards.get(id)?.refresh();
+    this.setSelection(id ? [id] : []);
+  }
+
+  isSelected(id) {
+    return this.selection.has(id);
+  }
+
+  /** Is more than one card selected (a group that moves together)? */
+  get multiSelected() {
+    return this.selection.size > 1;
+  }
+
+  /**
+   * Select these cards (those this user may edit).
+   * @param {string[]} ids
+   * @param {{add?: boolean}} [options]  Keep the cards already selected
+   */
+  setSelection(ids, { add = false } = {}) {
+    const scene = this.scene;
+    const next = new Set(add ? this.selection : []);
+    for ( const id of ids ) {
+      // A card just created may not be drawn yet; it's checked once it is.
+      const card = id && getCard(scene, id);
+      if ( card && canEditCard(scene, card) ) next.add(id);
+    }
+    const prev = this.selection;
+    if ( (prev.size === next.size) && [...prev].every(id => next.has(id)) ) return;
+    this.selection = next;
+    // Every selected card redraws: the resize handle shows only while one card is selected.
+    for ( const id of new Set([...prev, ...next]) ) this.cards.get(id)?.refresh();
+  }
+
+  /** Add a card to the selection, or take it out if it's in. Returns whether it's selected now. */
+  toggleSelect(id) {
+    if ( this.selection.has(id) ) {
+      this.setSelection([...this.selection].filter(s => s !== id));
+      return false;
+    }
+    this.setSelection([id], { add: true });
+    return this.selection.has(id);
+  }
+
+  /** Select the cards whose centre is inside a canvas rectangle (the selection box). */
+  selectInRect(rect, { add = false } = {}) {
+    const ids = [...this.cards.values()].filter(o => !o.destroyed && centreInRect(o.centre, rect)).map(o => o.id);
+    this.setSelection(ids, { add });
+  }
+
+  /* -------------------------------------------- */
+  /*  Moving several cards                        */
+  /* -------------------------------------------- */
+
+  /** A group move in progress: the card being dragged and the selected cards following it. */
+  #group = null;
+
+  /**
+   * The dragged card is one of several selected: the others that can move follow it.
+   * @param {CardObject} leader
+   * @returns {CardObject[]}  The followers
+   */
+  beginGroupMove(leader) {
+    this.#group = null;
+    if ( !this.multiSelected || !this.selection.has(leader.id) ) return [];
+    const followers = [...this.selection].map(id => this.cards.get(id))
+      .filter(o => o && (o !== leader) && !o.destroyed && o.movable);
+    for ( const o of followers ) o.follow();
+    if ( followers.length ) this.#group = { leader, followers };
+    return followers;
+  }
+
+  /** The group's members still on the board, the dragged card first. */
+  #groupMembers() {
+    const g = this.#group;
+    return g ? [g.leader, ...g.followers].filter(o => !o.destroyed) : [];
+  }
+
+  /** Move the followers by the dragged card's offset from where it started. */
+  moveGroup(dx, dy) {
+    for ( const o of this.#groupMembers().slice(1) ) o.followBy(dx, dy);
+  }
+
+  /** Live previews of the whole group for the other clients. */
+  emitGroupDrag() {
+    this.emitDrag(this.#groupMembers().map(o => ({ id: o.id, ...o.preview })));
+  }
+
+  /**
+   * Drop the group: the move is cut short so no card leaves the board, saved for every card in one
+   * update, and the group comes to the front keeping its stacking order.
+   * @param {number} dx
+   * @param {number} dy
+   */
+  async dropGroup(dx, dy) {
+    const members = this.#groupMembers();
+    this.#group = null;
+    const starts = members.map(o => o.dragging?.start ?? o.card);
+    ({ dx, dy } = clampGroupDelta(starts, dx, dy, canvas.dimensions.sceneRect));
+    const moves = members.map((o, i) => ({ id: o.id, x: starts[i].x + dx, y: starts[i].y + dy }));
+    for ( const o of members ) o.endFollow({ dx, dy, keep: !!(dx || dy) });
+    if ( !dx && !dy ) return this.emitDragEnd(members.map(o => o.id));
+    return this.commitMoves(moves);
+  }
+
+  /** The group's drag was cancelled: everyone snaps back. */
+  cancelGroup() {
+    const members = this.#groupMembers();
+    this.#group = null;
+    for ( const o of members.slice(1) ) o.endFollow({ keep: false });
+    if ( members.length ) this.emitDragEnd(members.map(o => o.id));
+  }
+
+  /**
+   * Save new positions for several cards in one update, bringing them to the front. Cards that
+   * can't move (locked meanwhile) snap back.
+   * @param {{id: string, x: number, y: number}[]} moves
+   */
+  async commitMoves(moves) {
+    const scene = this.scene;
+    const ok = moves.filter(m => {
+      const card = getCard(scene, m.id);
+      return card && canMoveCard(scene, card);
+    });
+    for ( const m of moves ) {
+      if ( ok.includes(m) ) continue;
+      const obj = this.cards.get(m.id);
+      if ( obj ) obj.preview = null;
+      obj?.refresh();
+    }
+    if ( !ok.length ) return;
+    const sorts = stackSorts(boardCards(scene), ok.map(m => m.id));
+    const update = {};
+    for ( const { id, x, y } of ok ) Object.assign(update, cardUpdate(id, { x, y, ...((id in sorts) ? { sort: sorts[id] } : {}) }));
+    try {
+      await this.#update(update);
+    } catch(err) {
+      ui.notifications.error(err.message);
+      for ( const { id } of ok ) {
+        const card = getCard(scene, id);
+        if ( card ) this.cards.get(id)?.setCard(card);
+      }
+    }
+  }
+
+  /**
+   * Patch several cards in one update (those this user may edit).
+   * @param {string[]} ids
+   * @param {(card: object) => object|null} patchFor
+   */
+  async patchCards(ids, patchFor) {
+    const scene = this.scene;
+    const update = {};
+    for ( const id of ids ) {
+      const card = getCard(scene, id);
+      if ( !card || !canEditCard(scene, card) ) continue;
+      const patch = patchFor(card);
+      if ( patch ) Object.assign(update, cardUpdate(id, patch));
+    }
+    if ( !foundry.utils.isEmpty(update) ) return this.#update(update);
   }
 
   /**
@@ -622,7 +782,8 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
 
   /** @override */
   _onClickLeft(event) {
-    this.select(null);
+    // Shift starts a selection box that adds to the selection, so it doesn't let go of it here.
+    if ( !((this.tool === "select") && event.shiftKey) ) this.select(null);
     this.closeMenu();
     this.cancelConnect();
     const point = event.interactionData?.origin ?? event.getLocalPosition(canvas.stage);
@@ -674,6 +835,14 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /** @override */
   _onDragLeftDrop(event) {
     if ( this.#stroke ) return this.#finishStroke(event.interactionData.destination);
+    // With the Select tool core draws the selection box, but only ends it for placeables layers.
+    const box = canvas.controls.select;
+    if ( box?.active ) {
+      box.clear();
+      box.active = false;
+      const coords = event.interactionData.coords;
+      if ( coords && (this.tool === "select") ) this.selectInRect(coords, { add: event.shiftKey });
+    }
   }
 
   /** @override */
@@ -857,8 +1026,22 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
 
   /** @override */
   async _onDeleteKey(event) {
-    if ( !this.selectedId ) return false;
-    await this.deleteCards([this.selectedId]);
+    if ( !this.selection.size ) return false;
+    await this.deleteCards([...this.selection]);
+    return true;
+  }
+
+  /** Ctrl+A selects every card this user may edit. @override */
+  _onSelectAllKey(event) {
+    if ( this.tool !== "select" ) return false;
+    this.setSelection([...this.cards.keys()]);
+    return true;
+  }
+
+  /** Esc lets go of the selection. @override */
+  _onDismissKey(event) {
+    if ( !this.selection.size ) return false;
+    this.select(null);
     return true;
   }
 
@@ -970,12 +1153,14 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   /*  Live drag previews                          */
   /* -------------------------------------------- */
 
-  emitDrag(cardId, g) {
-    emit("drag", { sceneId: this.scene.id, cardId, x: g.x, y: g.y, width: g.width, height: g.height });
+  /** @param {{id: string, x: number, y: number, width: number, height: number}[]} cards */
+  emitDrag(cards) {
+    emit("drag", { sceneId: this.scene.id, cards: cards.map(g => ({ id: g.id, x: g.x, y: g.y, width: g.width, height: g.height })) });
   }
 
-  emitDragEnd(cardId) {
-    emit("dragEnd", { sceneId: this.scene.id, cardId });
+  /** @param {string[]} ids */
+  emitDragEnd(ids) {
+    emit("dragEnd", { sceneId: this.scene.id, ids });
   }
 
   /** Another client is dragging (geometry) or stopped dragging (null). */
@@ -1014,6 +1199,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
    */
   openMenu(obj, event) {
     this.cancelConnect();
+    if ( this.multiSelected && this.selection.has(obj.id) ) return this.#openGroupMenu(event);
     const card = obj.card;
     // "Connect to…" starts from the pin right-clicked, if any.
     this.#menuPin = obj.pinAt(event.getLocalPosition?.(canvas.stage)) ?? MAIN_PIN;
@@ -1058,6 +1244,42 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       }).join("")}</div>`;
     }
     showMenu(ne.clientX, ne.clientY, swatches + menuItems(items), (action, button) => this.#onMenuAction(action, card.id, button));
+  }
+
+  /** The menu for the selected cards, opened with right-click on one of them. */
+  #openGroupMenu(event) {
+    const scene = this.scene;
+    const ids = [...this.selection];
+    const cards = ids.map(id => getCard(scene, id)).filter(Boolean);
+    const gm = game.user.isGM;
+    const allHidden = cards.every(c => c.hidden);
+    const allLocked = cards.every(c => c.locked);
+    const ne = event.nativeEvent ?? event;
+    this.#menuAt = { x: ne.clientX, y: ne.clientY };
+    const html = `<p class="mb-menu-heading">${t("Selection.Count", { count: cards.length })}</p>` + menuItems([
+      { action: "category", icon: "fa-tag", label: t("Category.Set") },
+      { action: "front", icon: "fa-arrow-up", label: t("Card.Front") },
+      { action: "back", icon: "fa-arrow-down", label: t("Card.Back") },
+      gm && { action: "hide", icon: allHidden ? "fa-eye" : "fa-eye-slash", label: t(allHidden ? "Card.Reveal" : "Card.Hide") },
+      gm && { action: "lock", icon: allLocked ? "fa-lock-open" : "fa-lock", label: t(allLocked ? "Card.Unlock" : "Card.Lock") },
+      { action: "deselect", icon: "fa-xmark", label: t("Selection.Clear") },
+      { action: "remove", icon: "fa-right-from-bracket", label: t("Selection.Remove", { count: cards.length }) }
+    ]);
+    showMenu(ne.clientX, ne.clientY, html, action => {
+      const stack = where => {
+        const sorts = stackSorts(boardCards(scene), ids, where);
+        return this.patchCards(Object.keys(sorts), c => ({ sort: sorts[c.id] }));
+      };
+      switch ( action ) {
+        case "category": return openCategoryPicker(scene, ids, this.#menuAt.x, this.#menuAt.y);
+        case "front": return stack("front");
+        case "back": return stack("back");
+        case "hide": return this.patchCards(ids, () => ({ hidden: !allHidden }));
+        case "lock": return this.patchCards(ids, () => ({ locked: !allLocked }));
+        case "deselect": return this.select(null);
+        case "remove": return this.deleteCards(ids);
+      }
+    });
   }
 
   /** Where the last card menu opened (follow-up pickers open there too). */

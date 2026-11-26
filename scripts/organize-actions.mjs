@@ -79,21 +79,27 @@ export function moveCardsToFolder(target, ids, folderId) {
 }
 
 /**
- * The category picker for a card, at client coordinates: every category, "None", and (for
- * editors) "Manage categories…".
+ * The category picker for a card (or several selected cards), at client coordinates: every
+ * category, "None", and (for editors) "Manage categories…". A category is ticked when every card has it.
+ * @param {string|string[]} cardIds
  */
-export function openCategoryPicker(scene, cardId, x, y) {
+export function openCategoryPicker(scene, cardIds, x, y) {
   const org = organizerOf(scene);
-  const card = org.getItem(cardId);
-  if ( !card || !org.canEditItem(card) ) return;
+  const ids = [cardIds].flat().filter(id => {
+    const card = org.getItem(id);
+    return card && org.canEditItem(card);
+  });
+  if ( !ids.length ) return;
   const cats = categoriesOf(org);
+  const shared = new Set(ids.map(id => org.getItem(id).category));
+  const only = (shared.size === 1) ? [...shared][0] : undefined;
   const html = `<p class="mb-menu-heading">${t("Category.Pick")}</p>` + menuItems([
-    ...cats.map(c => ({ action: "set", data: { id: c.id }, icon: c.icon, color: c.color, label: esc(c.name), active: card.category === c.id })),
-    { action: "set", data: { id: "" }, icon: "fa-ban", label: t("Category.None"), active: !cats.some(c => c.id === card.category) },
+    ...cats.map(c => ({ action: "set", data: { id: c.id }, icon: c.icon, color: c.color, label: esc(c.name), active: only === c.id })),
+    { action: "set", data: { id: "" }, icon: "fa-ban", label: t("Category.None"), active: (shared.size === 1) && !cats.some(c => c.id === only) },
     { action: "manage", icon: "fa-gear", label: t("Category.Manage") }
   ]);
   showMenu(x, y, html, (action, button) => {
-    if ( action === "set" ) return setCardCategory(scene, [cardId], button.dataset.id);
+    if ( action === "set" ) return setCardCategory(scene, ids, button.dataset.id);
     if ( action === "manage" ) return openCategoryManager(scene);
   });
 }

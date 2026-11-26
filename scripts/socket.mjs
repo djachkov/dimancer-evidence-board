@@ -2,8 +2,9 @@ import { SOCKET } from "./constants.mjs";
 
 /**
  * Module socket messages. The server relays them to every other connected client.
- *   {op: "drag", sceneId, cardId, x, y, width, height}  live preview while someone drags a card
- *   {op: "dragEnd", sceneId, cardId}                    the drag finished or was cancelled
+ *   {op: "drag", sceneId, cards: [{id, x, y, width, height}]}  live preview while someone drags
+ *                                                       cards (one, or a selected group)
+ *   {op: "dragEnd", sceneId, ids}                       the drag finished or was cancelled
  *   {op: "focus", sceneId, cardId, users}               a GM takes everyone (or these user ids) to this card
  */
 const handlers = {};
