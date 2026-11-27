@@ -21,10 +21,11 @@ export function titleFromPath(path) {
  * Either way a PDF (picked, typed or uploaded) becomes a document whose file is the PDF.
  * @param {object} [options]
  * @param {"board"|"journal"} [options.target]
+ * @param {JournalEntry} [options.entry]   The journal it goes into (target "journal")
  * @param {"image"|"pdf"} [options.kind]   What the dialog asks for (its labels and file browser)
  * @param {object[]} [options.categories]  The categories to offer (default: the board's)
  */
-export async function openAddEvidence({ target = "board", kind = "image", categories } = {}) {
+export async function openAddEvidence({ target = "board", entry, kind = "image", categories } = {}) {
   const journal = target === "journal";
   const pdf = kind === "pdf";
   const content = await foundry.applications.handlebars.renderTemplate(TEMPLATES.addEvidence, {
@@ -94,7 +95,7 @@ export async function openAddEvidence({ target = "board", kind = "image", catego
   // A PDF is a document whose pages are the file's; anything else is a picture.
   const asPdf = isPdfPath(src) || (result.file && isPdfFile(result.file)) || (pdf && !/\.(apng|avif|bmp|gif|jpe?g|png|svg|tiff?|webp)(\?.*)?$/i.test(src));
   const kindData = asPdf ? { kind: "document" } : {};
-  if ( journal ) return createEvidencePage({ src, title, category: result.category, ...kindData }, { hidden: game.user.isGM });
+  if ( journal ) return createEvidencePage({ src, title, category: result.category, ...kindData }, { hidden: game.user.isGM, entry });
   return canvas.board.addCard({ src, title, category: result.category, ...kindData });
 }
 

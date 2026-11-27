@@ -1,0 +1,23 @@
+{{!-- One piece of evidence drawn as the board draws it (journal-cards.mjs cardView). --}}
+<figure class="mb-card is-{{style}} mb-card-{{kind}}{{#if stacked}} is-stacked{{/if}}{{#if hidden}} is-hidden{{/if}}{{#if untitled}} is-untitled{{/if}}"
+        style="--tilt: {{tilt}}deg; --accent: {{accent}}; --seal: {{seal}};{{#if clip}} --clip: {{clip}};{{/if}}{{#if category}} --swatch: {{category.color}};{{/if}}">
+  {{#if stacked}}<span class="mb-card-under mb-card-under-2" aria-hidden="true"></span><span class="mb-card-under mb-card-under-1" aria-hidden="true"></span>{{/if}}
+  <div class="mb-card-paper">
+    <div class="mb-card-face">
+      {{#if isPhoto}}
+      <div class="mb-card-picture">{{#if src}}<img src="{{src}}" alt="" loading="lazy" draggable="false">{{else}}<i class="fa-solid fa-magnifying-glass" inert></i>{{/if}}</div>
+      <figcaption class="mb-card-title">{{title}}</figcaption>
+      {{else}}
+      {{#if isPdf}}<img class="mb-card-pdf-page" data-pdf-src="{{src}}" alt="" hidden draggable="false">{{/if}}
+      <div class="mb-card-doc">
+        <h4 class="mb-card-doc-title">{{title}}</h4>
+        {{#if excerpt}}<p class="mb-card-doc-body">{{excerpt}}</p>{{/if}}
+        {{#if isPdf}}<i class="fa-solid fa-file-pdf mb-card-doc-icon" inert></i>{{/if}}
+      </div>
+      {{#if stacked}}<span class="mb-card-doc-foot">{{pagesLabel}}</span>{{/if}}
+      {{/if}}
+    </div>
+  </div>
+  {{#if stacked}}<span class="mb-card-clip" aria-hidden="true"></span>{{/if}}
+  {{#if category}}<span class="mb-card-tab" data-tooltip="{{category.name}}"><i class="fa-solid {{category.icon}}" inert></i></span>{{/if}}
+</figure>

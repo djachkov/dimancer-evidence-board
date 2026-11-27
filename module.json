@@ -9,7 +9,7 @@
     "verified": "14.370"
   },
   "esmodules": ["scripts/main.mjs"],
-  "styles": ["styles/dimancer-board.css"],
+  "styles": ["styles/dimancer-board.css", "styles/journal.css"],
   "languages": [
     { "lang": "en", "name": "English", "path": "lang/en.json" }
   ],

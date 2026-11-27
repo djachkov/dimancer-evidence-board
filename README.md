@@ -1,8 +1,8 @@
 # Dimancer's Evidence Board
 
 A system-agnostic Foundry VTT v14 module for investigation and conspiracy boards. Pin evidence
-(pictures and text documents) on a board, move it around together with your players, and keep every
-piece in a shared Evidence Journal with notes.
+(pictures and text documents) on a board, move it around together with your players, and file it in
+evidence journals (shared or private, each in its own style) with notes.
 
 ## Using it
 
@@ -51,7 +51,7 @@ pins, flickers the lanterns and sweeps a scanline down a cyber board.
 | Source | How |
 |---|---|
 | A file or URL | **Pin evidence** (image button) in the board's toolbar. A PDF becomes a document. |
-| A text document | **New text document** (page button) in the board's toolbar: pinned on the board and opened in the Evidence Journal to write |
+| A text document | **New text document** (page button) in the board's toolbar: pinned on the board and opened in your default journal to write |
 | Files from your computer | Drop images or PDFs onto the board |
 | The file browser | Drag an image out of it onto the board |
 | Actors, Items, Journal entries/pages | Drag them from the sidebar; the card links back to the document. A text page, or an entry made of text pages, becomes a text document (a copy of its pages); a PDF page becomes a PDF document. |
@@ -63,7 +63,7 @@ pins, flickers the lanterns and sweeps a scanline down a cyber board.
 |---|---|
 | Move a card | Drag it. Everyone sees it move live. |
 | Resize it | Select it, then drag the orange corner handle |
-| Open it in the Evidence Journal | Double-click |
+| Open it in its journal | Double-click (evidence that isn't in a journal yet is filed in your default journal first) |
 | Rename, change order, delete; hide or lock (GM) | Right-click |
 | Take the selected card off the board | Delete key, or right-click → **Remove from the Board** |
 | Select several cards | Shift-click (or Ctrl-click) each one, or drag a box on the empty board: it picks the cards whose centre is inside. Shift + box adds to the selection. Ctrl+A selects every card you can edit; Esc or a click on the empty board lets go |
@@ -108,66 +108,112 @@ They move, resize, take threads and categories, and can be hidden or locked, lik
 
 A sketch is grabbed by its ink, so its empty corners never cover the evidence underneath. Once
 selected it can be dragged and resized from anywhere in its box. It gets a pin when a thread is tied
-to it. Stickers live on the board only: they aren't in the Evidence Journal.
+to it. Stickers live on the board only: they aren't in any journal.
 
 **Categories** are a property of each card, shown as a coloured tab on the polaroid. A board starts
 with Person, Place, Object, Document and Event until someone customises them. Set a card's category
 from its right-click menu (**Category…**, which also offers **Manage categories…**) or the Pin
-dialog. The Evidence Journal has its own categories.
+dialog. Each journal has its own categories.
 
 **Text documents** are evidence made of writing: a letter, a dossier, a page torn from a diary.
 On the board one shows as a sheet of A4 paper with its title and the start of its first page.
 A document of several pages is a stack, with the sheets underneath peeking out askew, a paper clip
-and a page count. Write it in the Evidence Journal, one page at a time: ‹ › turn the pages, and the
-page buttons add a page after the one shown or remove it. Threads, categories, ink, hiding and
+and a page count. Write it in its journal, right on the sheet, one page at a time: ‹ › under
+it turn the pages, and the page buttons add a page after the one shown or remove it. Threads, categories, ink, hiding and
 locking work as for pictures.
 
 **PDF documents** are documents whose pages are a PDF file: add one with the journal's PDF button,
 the Pin dialog, or by dropping a PDF file (or a Foundry PDF page) on a board. Boards and the journal
 only show its first page, as a picture rendered once per file per session, so even a long PDF stays
 light. Several pages show as a stack, like a written document. In the journal the book button reads
-the whole PDF in its own window (Foundry's PDF viewer): **Read the PDF** under its preview, the
-book button in the zoom bar, or **Read the whole PDF** in the card's right-click menu on a board.
+the whole PDF in its own window (Foundry's PDF viewer): **Read all N pages** under its preview, or
+**Read the whole PDF** in the right-click menu of its card (on a board or in the journal).
 
-**The Evidence Journal** is the world's case file: all evidence, whether it's on a board or not,
-browsable from any scene. Double-clicking evidence on a board opens it here. (It replaced the
-per-board evidence list, kept on the `evidence-list` git branch, and, on the `text-documents`
-branch, the separate evidence viewer.)
-- **Open board** at the top of the list goes to a board: straight there when there's one, or pick
-  from a list when there are several (the one you're on is ticked).
-- **Open it** from the Journal sidebar (**Evidence Journal**; a GM's first click creates it), the
-  book button in the board toolbar, or a card's right-click → **Show in Evidence Journal**.
-- **Two directions.** Evidence pinned on a board also appears in the journal. Evidence added in the
-  journal (image and page buttons) is *not* put on a board. A GM's starts **Hidden**; a player's is
-  visible.
-- **Back and forth.** Drag a row from the journal onto a board, or use **Place on …**, to pin it
-  there (the same evidence, not a copy). **Remove from the Board** (or the Delete key) only takes
-  evidence off the board: it stays in the journal, and evidence that wasn't in it yet is added
-  first. Evidence is deleted for good only from the journal. Stickers aren't evidence, so removing
-  one deletes it.
-- **Find it on its boards.** Each item lists the boards it's pinned on. Click one (or double-click
-  the row) to go there: the board opens and the card is selected and flashes.
-- **Access is one switch** (GM): **Hidden from players / Revealed to players**. Hidden evidence
-  disappears from players' journal and its cards disappear from boards, and the server refuses
-  their edits. Like everything in Foundry, its data still reaches players' browsers, so it isn't
-  secret from someone who digs in the console.
-- **The list:** **Folders** (your own nested filing), **Categories** or **All**; sort by journal
-  order, name or newest; search over titles, notes and category names; and a filter for all
-  evidence, on a board, or not on a board. Drag rows onto a folder or category to file them, drag a
-  folder onto another to nest it, click a folder to collapse it, and right-click (or ⋯) a folder to
-  rename, recolour, add a sub-folder or delete it (its contents move up). ⚙ opens the category
-  manager. View, sort, filter and collapsed folders are remembered in your browser. The journal's
-  folders and categories are its own, separate from a board's card categories.
+**Evidence journals** are the case files: evidence, whether it's on a board or not, browsable from
+any scene, laid out as an open notebook. Double-clicking evidence on a board opens it in its journal.
+(They replaced the per-board evidence list, kept on the `evidence-list` git branch, and, on the
+`text-documents` branch, the separate evidence viewer.)
+- **As many journals as you like.** Anyone, GM or player, starts one with **New journal…** under the
+  journal button in a journal's bar (or the Journal sidebar's **New Evidence Journal** button while
+  they have none; once they do, it opens their default journal). The dialog
+  asks for a name, the **style** (Classic, Quest board or Cyberpunk, shown as a sample card in each;
+  it can't be changed later) and who can use it: **Shared with everyone** (every player can read it,
+  add evidence and file into it) or **Only me** (only its creator and the GM). Players can't create
+  journal entries in Foundry by default (it's a Trusted permission), so a player's journal is created
+  by a connected GM's client on their behalf: a GM must be online.
+- **Your default journal.** Each user marks one journal as their default: **Make it my default
+  journal** at the foot of its contents, under the journal button, in the dialog when creating it,
+  or in the Journal sidebar's right-click menu. It has a ★ (in the bar and in the sidebar). Evidence
+  you take off a board is filed there. Without a mark, the first journal you can add to is your
+  default; with none at all, you're asked to create one.
+- **Filed when it comes off a board.** Evidence pinned straight onto a board lives on the board only
+  until someone takes it off (**Remove from the Board** or the Delete key): then it's filed in *their*
+  default journal. Evidence placed from a journal is already there and stays where it is.
+  **Add to …** in a card's right-click menu files it now, keeping it on the board. Evidence that
+  can't be filed (no journal you can add to) is deleted for good, so you're asked first.
+- **Switch journals** with the journal button at the start of the bar: it lists the journals you can
+  open (★ your default, a lock for private ones) and opens the one you pick in the same spot.
+  **Move to …** in a card's menu moves evidence into another journal you can add to: its cards on
+  boards stay pinned and follow it (on boards you can edit; a GM's, all of them). It leaves its
+  folder behind and keeps its category if the new journal has it.
+- **Two spreads.** The **contents**: on the left page the table of contents (**Folders**, your own
+  nested filing; **Categories**; or **All**), each chapter with its count; on the right a contact
+  sheet of the evidence, chapter by chapter. Click a chapter to scroll to it. Click a card to
+  **read** it: the left page shows it large (a zoomable picture in its frame, a document's sheet, a
+  PDF's first page), the right page its title, category and notes, with the boards it's on and who
+  added it at the foot. **‹ Contents** (or Esc) goes back; ‹ › (or ← →) turn to the previous or next
+  piece, in the contents' order and search. A narrow window shows one page at a time.
+- **Cards look as they do on a board**, in the journal's style (classic polaroids and paper,
+  quest-board parchment, cyberpunk holo panels): the same paper, fonts, torn edges, paper clips, wax
+  seals and category tabs. The book itself takes the style's mood: warmer paper for parchment, a dark
+  terminal for holo. A journal from before styles existed is classic.
+- **The bar over the book:** search (`/` jumps to it) over titles, notes, document text and category
+  names; **Filter** (sort by journal order, name or newest; show all evidence, only what's on a
+  board, or only what isn't); **Add** (an image, a text document or a PDF); and **Open board**, which
+  goes straight to the only board or offers a list (the one you're on is ticked). While reading,
+  **⋯** holds the rest: place on this board, go to it on a board, open the picture in its own window,
+  and for a GM **Show to players**, **Everyone to the board** and Hide/Reveal; set its category,
+  take it out of its folder, delete it. Right-clicking a card in the contents opens the same menu.
+- **Two directions.** Evidence added in a journal is *not* put on a board. A GM's starts **Hidden**;
+  a player's is visible.
+- **Back and forth.** Drag a card from the journal onto a board, or use **Place on …** at the foot of
+  its page, to pin it there (the same evidence, not a copy). **Remove from the Board** (or the Delete
+  key) only takes evidence off the board: it stays in its journal, and evidence that wasn't in one
+  yet is filed in your default journal. Evidence is deleted for good only from a journal. Stickers aren't evidence, so
+  removing one deletes it.
+- **Find it on its boards.** The foot of its page lists the boards it's pinned on. Click one (or
+  double-click its card in the contents) to go there: the board opens and the card is selected and
+  flashes.
+- **Access is one switch** (GM): the **Hidden from players / Revealed to players** chip under the
+  title. Hidden evidence disappears from players' journal and its cards disappear from boards, and
+  the server refuses their edits. Like everything in Foundry, its data still reaches players'
+  browsers, so it isn't secret from someone who digs in the console.
+- **Filing:** drag cards onto a chapter (in the contents or its heading on the contact sheet) to
+  file them, drag a folder onto another to nest it, the chevrons collapse chapters, and right-click
+  (or ⋯) a folder to rename, recolour, add a sub-folder or delete it (its contents move up).
+  **New folder** and **Manage categories** are under the contents. View, sort, filter and collapsed
+  chapters are remembered in your browser. The journal's folders and categories are its own,
+  separate from a board's card categories.
 - **The picture** (or a PDF's first page) zooms and pans: wheel zooms at the cursor (the point
   under it stays put; the picture only has to keep covering the middle of the box), drag pans,
-  double-click toggles Fit and a close-up, and − + Fit 1:1 do the same. Drag its bottom-right corner
-  to make it taller (remembered). ⧉ opens it in its own window.
-- **A text document** shows one page at a time on paper; anyone who can edit the evidence writes on
-  it with the pencil button. The paper's corner drags like the picture's.
-- **GM buttons** under the title:
+  double-click toggles Fit and a close-up, and − + Fit 1:1 do the same. ⧉ opens it in its own window.
+- **Writing** (notes, a document's pages, the title) happens in place: click into the text and type.
+  It saves itself a moment after you stop and when you click away (Ctrl+S saves at once); the foot
+  of the page says *Saving…* / *Saved*. There's no edit button and no menubar:
+  - select text for a small toolbar: bold, italic, underline, strikethrough, heading, subheading,
+    quote, bulleted and numbered lists, link, and secret (a block only owners see);
+  - type **/** at the start of a line (or after a space) for a menu of blocks to insert (text,
+    headings, lists, quote, secret, divider, code), filtered as you type, picked with ↑ ↓ and Enter;
+  - Markdown-style shortcuts format as you type: `**bold**`, `*italic*` or `_italic_`,
+    `~~strikethrough~~`, `` `code` ``, `# ` to `###### ` for headings, `- ` or `1. ` for lists, `> `
+    for a quote, and `---` for a divider.
+  It's Foundry's own editor underneath, so dragging an Actor, Item or page in still makes a link,
+  `@UUID[…]` links and secrets work, pasted images upload, and Ctrl+Z undoes.
+- **GM actions** (in ⋯ and the right-click menu):
   - **Show to players** is Foundry's own Show Players: everyone or chosen players, optionally even
-    while it's hidden from them. It opens in their Evidence Journal (it stays hidden on boards, and
-    in their list after a reload).
+    while it's hidden from them. It opens in its journal for them (it stays hidden on boards, and
+    in their list after a reload). Players who can't open that journal (someone else's private one)
+    can't see it.
   - **Everyone to the board** takes every connected player to the evidence on its board (this board
     if it's here, else the first it's on), regardless of their scene permission, and pans and
     flashes it there. Each board under **On boards** has the same button. A hidden card isn't shown
@@ -184,7 +230,8 @@ branch, the separate evidence viewer.)
 | Connect, recolour and cut threads | ✓ | ✓ | – |
 | Hide/reveal, lock/unlock a card | ✓ | – | – |
 | Lock the whole board | ✓ (toolbar lock, or Scene config) | – | – |
-| Open evidence in the Evidence Journal | ✓ | ✓ | ✓ |
+| Open evidence in its journal | ✓ | ✓ | ✓ |
+| Create a journal (shared or private), pick a default journal | ✓ | ✓ (a GM must be online) | ✓ (a GM must be online) |
 | Show evidence to players, take everyone to it on a board | ✓ | – | – |
 
 **Uploading** (Add dialog, dropped files, pasted images) needs the core permission **Upload New
@@ -192,12 +239,17 @@ Files**, which players don't have by default. Grant it under Game Settings → C
 or pin images by path or URL instead. Uploads go to `worlds/<world>/dimancer-board/`.
 
 Images from other websites only show on the canvas if the site allows cross-origin use. Otherwise
-the card shows a grey placeholder (the Evidence Journal still shows them), so upload those instead.
+the card shows a grey placeholder (journals still show them), so upload those instead.
 
 ## How it works
 
-- **The Evidence Journal is a JournalEntry flagged `flags.dimancer_board.evidenceJournal`**, pinned to
-  the module's `EvidenceJournalSheet` (via `flags.core.sheetClass`). Players own it. Each piece of
+- **An evidence journal is a JournalEntry flagged `flags.dimancer_board.evidenceJournal`**
+  (`{version: 2, style}`), pinned to the module's `EvidenceJournalSheet` (via `flags.core.sheetClass`).
+  A shared one is `ownership {default: OWNER}`; a private one `{default: NONE, <creator>: OWNER}`.
+  A user's default journal is the User flag `flags.dimancer_board.defaultJournal` (an entry id),
+  checked against what they can still add to (`pickDefaultJournal`). A player without the Create
+  Journal Entries permission sends `createJournal` over the module socket; the active GM's client
+  creates it and replies with `journalCreated`. Each piece of
   evidence is a page of the module's `dimancer_board.evidence` type (image in `src`, title as the
   name, `system.notes/category/folder/link/author/created`). Hidden is page ownership
   `{default: NONE}` (replaced whole, so no per-user entries remain); revealed inherits OWNER from
@@ -214,6 +266,20 @@ the card shows a grey placeholder (the Evidence Journal still shows them), so up
   per session, shared as a texture by cards and as a blob URL by the journal. A card takes the
   page's shape at A4 height. The full file opens in `PdfViewer`, an iframe on Foundry's
   `scripts/pdfjs/web/viewer.html`, kept across re-renders so the reader keeps their place.
+- **The journal's cards are HTML**, not pictures of the canvas: `journal-cards.mjs` turns a page into
+  a card description (kind, tilt from its id, the torn parchment outline from the board's own
+  `tornEdge`, accent and seal colours) and `templates/journal-card.hbs` draws it with
+  `styles/journal.css`. The fonts and colours of each card style live in `render/card-look.mjs`,
+  which both the canvas painters and the journal read, so the two can't drift apart. The parchment
+  texture is the board's, turned into a CSS image once per session.
+- **The journal editor** (`journal-editor.mjs`) is Foundry's `<prose-mirror>` element (not toggled,
+  so always editable) whose `plugins` event it answers: Foundry's menubar plugin is replaced by an
+  empty one, and it adds a floating selection toolbar, the "/" menu (in the `chatInput` slot,
+  which Foundry orders ahead of its keymaps so the menu gets Enter, Esc and the arrows first), mark
+  input rules, autosave (`el.save()` debounced and on blur, shown through `data-save-state`) and
+  a placeholder. Any `<prose-mirror data-mb-editor>` gets it. The pure rules (slash items, Markdown
+  patterns) are in `editor-rules.mjs`. The sheet doesn't re-render while someone is typing or a save
+  is pending; live updates land when they leave the field.
 - **Everyone to the board** is a module socket message `{op: "focus", sceneId, cardId, users}`,
   honoured only from a GM (optionally for some user ids).
 
@@ -264,7 +330,7 @@ x/y/size adjusted to match) when ink goes past its edge. Strokes are keyed by id
 drawing on one sketch at once don't overwrite each other.
 
 Cards also carry `category` and `folder` ids. Categories and folders live next to the cards
-(`scripts/organize.mjs`), in the same shape on the Evidence Journal's JournalEntry, whose pages
+(`scripts/organize.mjs`), in the same shape on each evidence journal's JournalEntry, whose pages
 carry them in `system`. A board's folders have no UI since the board list was removed (the
 `evidence-list` branch); its categories still drive the cards' coloured tabs:
 
@@ -280,7 +346,7 @@ flags.dimancer_board.folders.<id>    = { id, name, color, parent, sort } // pare
 ## Development
 
 ```
-node --test test/*.test.mjs    # pure card, thread, organisation, journal and viewport logic
+node --test test/*.test.mjs    # pure card, thread, organisation, journal, editor-rule and viewport logic
 ```
 
 GitHub Actions runs these tests on every push to `main` and on pull requests (`test.yml`).

@@ -9,8 +9,12 @@ import { DOCUMENT_TYPES, pinDocument, registerPaste } from "./sources.mjs";
 import { registerEvidencePageType } from "./evidence-page-data.mjs";
 import EvidenceJournalSheet from "./evidence-journal-sheet.mjs";
 import { registerJournalSync } from "./journal-sync.mjs";
+import { registerJournalEditor } from "./journal-editor.mjs";
 import { focusCard } from "./focus.mjs";
-import { createEvidenceJournal, getEvidenceJournal, linkBoardToJournal, newDocument, openEvidenceJournal } from "./journal-store.mjs";
+import {
+  createEvidenceJournal, defaultJournal, evidenceJournals, getEvidenceJournal, linkBoardToJournal, newDocument,
+  openEvidenceJournal, promptNewJournal, registerJournalSocket, setDefaultJournal
+} from "./journal-store.mjs";
 
 Hooks.once("init", () => {
   // Always registered; on a scene that isn't a board it draws nothing and has no controls.
@@ -25,12 +29,14 @@ Hooks.once("init", () => {
     label: () => game.i18n.localize("DIMANCER_BOARD.Journal.SheetLabel")
   });
   registerJournalSync();
+  registerJournalEditor();
 });
 
 Hooks.once("ready", () => {
   // Templates come over the socket; fetch them now so the first dialog opens without a wait.
   foundry.applications.handlebars.loadTemplates(Object.values(TEMPLATES));
   registerSocket();
+  registerJournalSocket();
   registerPaste();
   onSocket("drag", ({ sceneId, cards }) => {
     if ( (canvas.scene?.id !== sceneId) || !Array.isArray(cards) ) return;
@@ -48,7 +54,8 @@ Hooks.once("ready", () => {
   });
   game.modules.get(MODULE_ID).api = {
     createBoard, convertToBoard, openAddEvidence, openCategoryManager,
-    getEvidenceJournal, openEvidenceJournal, createEvidenceJournal, linkBoardToJournal, newDocument
+    getEvidenceJournal, openEvidenceJournal, createEvidenceJournal, linkBoardToJournal, newDocument,
+    evidenceJournals, defaultJournal, setDefaultJournal, promptNewJournal
   };
 });
 

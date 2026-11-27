@@ -34,7 +34,9 @@ export const TEMPLATES = Object.freeze({
   sceneConfig: `modules/${MODULE_ID}/templates/scene-config.hbs`,
   createBoard: `modules/${MODULE_ID}/templates/create-board.hbs`,
   styleFields: `modules/${MODULE_ID}/templates/style-fields.hbs`,
-  evidenceJournal: `modules/${MODULE_ID}/templates/evidence-journal.hbs`
+  evidenceJournal: `modules/${MODULE_ID}/templates/evidence-journal.hbs`,
+  journalCard: `modules/${MODULE_ID}/templates/journal-card.hbs`,
+  createJournal: `modules/${MODULE_ID}/templates/create-journal.hbs`
 });
 
 /** i18n helper. */

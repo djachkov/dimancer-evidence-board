@@ -11,9 +11,12 @@ import { PdfViewer, isPdfDocument, pdfPreview } from "./pdf-preview.mjs";
 import { openLinked } from "./sources.mjs";
 import { openAddEvidence } from "./add-evidence.mjs";
 import ImageStage from "./image-stage.mjs";
+import { parchmentCss } from "./journal-paper.mjs";
+import { cardView, contentSections, matchesQuery, pageTurn, styleVars } from "./journal-cards.mjs";
 import {
-  boardPlacements, canEditJournal, canEditPage, canSeePage, createEvidencePage, deleteEvidence, journalItems,
-  journalOrganizer, placeOnBoard, setPageHidden
+  boardPlacements, canEditJournal, canEditPage, canSeePage, createEvidencePage, deleteEvidence, evidenceJournals,
+  isDefaultJournal, journalItems, journalOrganizer, journalStyleOf, movePage, placeOnBoard, promptNewJournal,
+  setDefaultJournal, setPageHidden
 } from "./journal-store.mjs";
 
 const { DocumentSheetV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -48,17 +51,28 @@ const prefs = {
   }
 };
 
+/** Is this element somewhere the user types (keys belong to it, not to page turning)? */
+const isTyping = el => !!el?.closest?.("input, textarea, select, [contenteditable=true]");
+
 /**
- * The Evidence Journal (POC): the world's evidence as a case file, browsable from any scene.
+ * An Evidence Journal: evidence as a case-file notebook, browsable from any scene. A world can have
+ * several (shared or private); each keeps the style it was created in (classic, quest-board
+ * parchment or cyberpunk holo), for its paper and its cards.
  *
- * Left: every feature of the board's evidence list (Folders / Categories / All, sorting, search,
- * collapsing, drag-to-file, folder menus, the category manager), plus a placement filter. Right:
- * the selected evidence: its picture (zoomable) or its text document (A4 pages, written in place),
- * title, category, notes, Hidden/Revealed (GM), and the boards it's pinned on, each a jump to the
- * card. Rows can be dragged onto a board to pin them there. Double-clicking evidence on a board
- * opens it here.
+ * Two spreads of one open book:
+ * - Contents: the left page is the table of contents (Folders, Categories or All; folders and
+ *   categories are chapters, with counts; drop evidence on one to file it). The right page is a
+ *   contact sheet of the evidence, each piece drawn as a board draws it in the journal's card style
+ *   (polaroids, A4 sheets, parchment, holo panels), grouped by chapter.
+ * - Reading: one piece. The left page shows it large (a zoomable picture in its frame, a document's
+ *   sheet written in place, a PDF's first page); the right page its title, category and notes,
+ *   typeset for reading and written in place, with the boards it's on at the foot. ‹ › (or the
+ *   arrow keys) turn to the previous or next piece; Esc goes back to the contents.
  *
- * Shown for the JournalEntry flagged as the evidence journal (pinned via flags.core.sheetClass).
+ * The bar's journal button switches to another journal, makes this one the user's default (where
+ * evidence taken off a board is filed) or starts a new one. Cards drag onto a board to pin them
+ * there. Double-clicking evidence on a board opens it in its journal.
+ * Shown for JournalEntries flagged as evidence journals (pinned via flags.core.sheetClass).
  */
 export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
   constructor(options) {
@@ -68,47 +82,50 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     this.#sort = SORTS.includes(p.sort) ? p.sort : "board";
     this.#placement = PLACEMENTS.includes(p.placement) ? p.placement : "all";
     this.#collapsed = new Set(Array.isArray(p.collapsed) ? p.collapsed : []);
-    this.#stageHeight = Number.isFinite(p.stageHeight) ? p.stageHeight : null;
   }
 
   static DEFAULT_OPTIONS = {
-    classes: ["dimancer-board-list", "dimancer-board-journal"],
+    classes: ["dimancer-board-journal"],
     tag: "div",
-    window: { icon: "fa-solid fa-magnifying-glass", resizable: true },
-    position: { width: 780, height: 620 },
+    window: { icon: "fa-solid fa-book-open", resizable: true },
+    position: { width: 1060, height: 720 },
     actions: {
-      select: EvidenceJournalSheet.#onSelect,
+      open: EvidenceJournalSheet.#onOpen,
+      contents: EvidenceJournalSheet.#onContents,
+      prev: EvidenceJournalSheet.#onPrev,
+      next: EvidenceJournalSheet.#onNext,
       toggle: EvidenceJournalSheet.#onToggle,
+      goto: EvidenceJournalSheet.#onGoto,
       mode: EvidenceJournalSheet.#onMode,
+      filter: EvidenceJournalSheet.#onFilter,
+      addMenu: EvidenceJournalSheet.#onAddMenu,
+      itemMenu: EvidenceJournalSheet.#onItemMenu,
       newFolder: EvidenceJournalSheet.#onNewFolder,
       manageCategories: EvidenceJournalSheet.#onManageCategories,
       groupMenu: EvidenceJournalSheet.#onGroupMenu,
       clearSearch: EvidenceJournalSheet.#onClearSearch,
-      addEvidence: EvidenceJournalSheet.#onAddEvidence,
-      addDocument: EvidenceJournalSheet.#onAddDocument,
+      pickCategory: EvidenceJournalSheet.#onPickCategory,
       prevDocPage: EvidenceJournalSheet.#onPrevDocPage,
       nextDocPage: EvidenceJournalSheet.#onNextDocPage,
       addDocPage: EvidenceJournalSheet.#onAddDocPage,
       removeDocPage: EvidenceJournalSheet.#onRemoveDocPage,
-      showPlayers: EvidenceJournalSheet.#onShowPlayers,
-      jumpEveryone: EvidenceJournalSheet.#onJumpEveryone,
       openBoard: EvidenceJournalSheet.#onOpenBoard,
-      addPdf: EvidenceJournalSheet.#onAddPdf,
       place: EvidenceJournalSheet.#onPlace,
       jump: EvidenceJournalSheet.#onJump,
       toggleHidden: EvidenceJournalSheet.#onToggleHidden,
-      deleteEvidence: EvidenceJournalSheet.#onDelete,
       openImage: EvidenceJournalSheet.#onOpenImage,
       zoomIn: EvidenceJournalSheet.#onZoomIn,
       zoomOut: EvidenceJournalSheet.#onZoomOut,
       fit: EvidenceJournalSheet.#onFit,
       actual: EvidenceJournalSheet.#onActual,
-      openLink: EvidenceJournalSheet.#onOpenLink
+      openLink: EvidenceJournalSheet.#onOpenLink,
+      journals: EvidenceJournalSheet.#onJournals,
+      makeDefault: EvidenceJournalSheet.#onMakeDefault
     }
   };
 
   static PARTS = {
-    main: { template: TEMPLATES.evidenceJournal }
+    main: { template: TEMPLATES.evidenceJournal, templates: [TEMPLATES.journalCard] }
   };
 
   /** Lets journal-sync find open evidence sheets. */
@@ -130,48 +147,24 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   #sort;
   #placement;
   #collapsed;
+  /** The piece being read (null: the contents). */
   #selected = null;
   /** Which page of the selected text document is shown (0-based). */
   #docPage = 0;
   #pending = false;
-  #scrollTop = 0;
+  /** Contents scroll positions, kept across re-renders and a visit to a piece. */
+  #scroll = { toc: 0, sheet: 0 };
   #searchFocus = null;
-  /** The picture's height, as the user last dragged it (null: the stylesheet's default). */
-  #stageHeight;
+  /** The reading order, from the last render (for page turning). */
+  #order = [];
+  /** @type {((ev: KeyboardEvent) => void)|null} */
+  #keyListener = null;
   /** The zoomable picture; it outlives re-renders, so zoom and pan survive live updates. */
-  #stage = new ImageStage({
-    onResize: height => {
-      this.#stageHeight = Math.round(height);
-      this.#savePrefs();
-    }
-  });
-
-  /** Watches the document paper's height (dragged like the picture's, and stored with it). */
-  #paperObserver = null;
-  #paperTimer = null;
-
-  #watchPaper(paper) {
-    this.#paperObserver?.disconnect();
-    this.#paperObserver = null;
-    if ( !paper ) return;
-    let height = paper.offsetHeight;
-    this.#paperObserver = new ResizeObserver(() => {
-      const h = paper.offsetHeight;
-      if ( !h || (h === height) ) return;
-      height = h;
-      clearTimeout(this.#paperTimer);
-      this.#paperTimer = setTimeout(() => {
-        this.#stageHeight = h;
-        this.#savePrefs();
-      }, 300);
-    });
-    this.#paperObserver.observe(paper);
-  }
+  #stage = new ImageStage();
 
   #savePrefs() {
     prefs.set(this.document.id, {
-      mode: this.#mode, sort: this.#sort, placement: this.#placement, collapsed: [...this.#collapsed],
-      stageHeight: this.#stageHeight
+      mode: this.#mode, sort: this.#sort, placement: this.#placement, collapsed: [...this.#collapsed]
     });
   }
 
@@ -179,11 +172,11 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   #isBusy() {
     const el = this.element;
     if ( !el ) return false;
-    if ( el.querySelector("prose-mirror[open]") ) return true;
+    if ( el.querySelector("prose-mirror[data-save-state=pending]") ) return true;
     const active = document.activeElement;
     // The search box doesn't count (it keeps its text and focus across a re-render), nor do selects
     // (they save the moment they change).
-    return !!active && el.contains(active) && active.matches("input[type=text], textarea");
+    return !!active && el.contains(active) && (active.matches("input[type=text], textarea") || active.isContentEditable);
   }
 
   /**
@@ -210,80 +203,109 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   /*  Context                                     */
   /* -------------------------------------------- */
 
+  /** The card style: the one the journal was created with. */
+  #cardStyle() {
+    return journalStyleOf(this.document);
+  }
+
   /** @override */
   async _prepareContext(options) {
     const entry = this.document;
     const gm = game.user.isGM;
     const editable = canEditJournal(entry);
     const index = boardPlacements();
-    let items = journalItems(entry, index).filter(i => gm || canSeePage(entry.pages.get(i.id)));
+    const allItems = journalItems(entry, index).filter(i => gm || canSeePage(entry.pages.get(i.id)));
+    let items = allItems;
     if ( this.#placement === "placed" ) items = items.filter(i => i.placements.length);
     else if ( this.#placement === "unplaced" ) items = items.filter(i => !i.placements.length);
     const cats = categoriesOf(this.organizer);
     const catById = new Map(cats.map(c => [c.id, c]));
+    const style = this.#cardStyle();
+    const untitled = kind => t(kind === "document" ? "Document.Untitled" : "Card.Untitled");
 
     const rows = listRows({
       items, folders: boardFolders(entry), categories: boardCategoriesRaw(entry),
       mode: this.#mode, sort: this.#sort, includeHidden: true
-    }).map(r => {
-      const collapsedAbove = r.ancestors.some(a => this.#collapsed.has(a));
-      if ( r.type === "group" ) {
-        const g = r.group;
+    });
+    const cardEntry = r => {
+      const c = r.card;
+      const cat = catById.get(c.category) ?? null;
+      const text = c.kind === "document" ? plainText(c.docPages.join(" ")) : "";
+      return {
+        id: c.id,
+        search: `${c.title} ${plainText(c.notes)} ${text} ${cat?.name ?? ""}`.toLowerCase(),
+        card: {
+          ...cardView(c, { style, category: cat, text: plainText(c.docPages[0] ?? ""), untitled: untitled(c.kind) }),
+          pagesLabel: t("Document.Pages", { count: Math.max(1, c.docPages.length) })
+        }
+      };
+    };
+    const sections = contentSections(rows).map(s => {
+      const g = s.group;
+      const collapsed = this.#collapsed.has(s.key);
+      const collapsedAbove = s.ancestors.some(a => this.#collapsed.has(a));
+      const cards = s.cards.map(cardEntry);
+      if ( !g ) {
         return {
-          ...r, isGroup: true, collapsed: this.#collapsed.has(r.id), collapsedAbove,
-          name: g.name ?? t("Category.Uncategorized"), color: g.color,
-          icon: r.kind === "category" ? g.icon : (this.#collapsed.has(r.id) ? "fa-folder" : "fa-folder-open"),
-          menu: editable && (r.kind === "folder"),
-          draggable: editable && (r.kind === "folder")
+          key: s.key, depth: 0, ancestors: [], cards, count: cards.length, collapsed, collapsedAbove,
+          name: t(this.#mode === "all" ? "Journal.AllEvidence" : "Journal.Loose"), icon: "fa-layer-group", loose: true
         };
       }
-      const c = r.card;
-      const cat = catById.get(c.category);
       return {
-        ...r, isGroup: false, collapsedAbove,
-        src: c.src,
-        isDocument: (c.kind === "document") && !c.src,
-        isPdf: isPdfDocument(c),
-        title: c.title || t(c.kind === "document" ? "Document.Untitled" : "Card.Untitled"),
-        untitled: !c.title,
-        hidden: c.hidden,
-        placed: c.placements.length,
-        catColor: (this.#mode !== "categories") ? cat?.color : null,
-        catName: cat?.name ?? "",
-        current: c.id === this.#selected,
-        search: `${c.title} ${plainText(c.notes)} ${plainText(c.docPages.join(" "))} ${cat?.name ?? ""}`.toLowerCase()
+        key: s.key, groupId: g.groupId, kind: g.kind, depth: s.depth, ancestors: s.ancestors, cards,
+        count: g.count, collapsed, collapsedAbove,
+        name: g.group.name ?? t("Category.Uncategorized"), color: g.group.color,
+        icon: g.kind === "category" ? g.group.icon : (collapsed ? "fa-folder" : "fa-folder-open"),
+        menu: editable && (g.kind === "folder"),
+        draggable: editable && (g.kind === "folder")
       };
     });
 
-    const visibleIds = new Set(items.map(i => i.id));
+    // Reading order: the contents' order, narrowed by the search.
+    const cardEntries = sections.flatMap(s => s.cards);
+    this.#order = cardEntries.filter(c => matchesQuery(c.search, this.#query)).map(c => c.id);
+
     const selectedPage = entry.pages.get(this.#selected);
-    const selected = (selectedPage && (gm || canSeePage(selectedPage)))
-      ? await this.#detailContext(selectedPage, journalItems(entry, index).find(i => i.id === selectedPage.id), catById, cats)
-      : null;
+    let selected = null;
+    if ( selectedPage && (gm || canSeePage(selectedPage)) ) {
+      const item = allItems.find(i => i.id === selectedPage.id);
+      if ( item ) selected = await this.#readingContext(selectedPage, item, catById, style);
+    }
+    if ( !selected ) this.#selected = null;
+    const order = this.#order.includes(this.#selected) ? this.#order : allItems.map(i => i.id);
+    const turn = selected ? pageTurn(order, selected.id) : null;
 
     return {
-      rows, editable, gm, selected,
+      editable, gm, selected, style,
+      isDefault: isDefaultJournal(entry),
+      styleVars: styleVars(style),
+      reading: !!selected,
+      turn: turn && { ...turn, number: turn.index + 1 },
+      title: entry.name,
+      sections,
+      toc: sections.filter(s => !s.loose || (this.#mode !== "folders") || s.cards.length),
       boards: this.#boards().map(s => ({ id: s.id, name: s.name, current: s === canvas.scene })),
-      stageHeight: this.#stageHeight,
-      count: rows.filter(r => !r.isGroup).length,
-      filteredOut: !!selected && !visibleIds.has(selected.id),
+      count: cardEntries.length,
+      countLabel: cardEntries.length === 1 ? t("Journal.CountOne") : t("Journal.Count", { count: cardEntries.length }),
+      empty: !allItems.length,
       query: this.#query,
+      filtered: (this.#placement !== "all") || (this.#sort !== "board"),
       modes: MODES.map(m => ({ id: m, label: t(`List.Mode.${m}`), active: m === this.#mode })),
-      sorts: SORTS.map(s => ({ id: s, label: t(s === "board" ? "Journal.SortOrder" : `List.Sort.${s}`), selected: s === this.#sort })),
-      placements: PLACEMENTS.map(p => ({ id: p, label: t(`Journal.Placement.${p}`), selected: p === this.#placement })),
       isFolders: this.#mode === "folders",
       isCategories: this.#mode === "categories"
     };
   }
 
-  /** The right-hand pane for one page. */
-  async #detailContext(page, item, catById, cats) {
+  /** The reading spread for one page. */
+  async #readingContext(page, item, catById, style) {
     const editable = canEditPage(page);
     const board = canvas.scene;
     const onCurrent = item.placements.find(p => p.sceneId === board?.id);
     const link = item.link ? fromUuidSync(item.link, { strict: false }) : null;
     const TE = foundry.applications.ux.TextEditor.implementation;
-    // A PDF shows its first page like a picture (zoomable; ⧉ reads the whole file).
+    const category = catById.get(item.category) ?? null;
+    const card = cardView(item, { style, category, untitled: t(item.kind === "document" ? "Document.Untitled" : "Card.Untitled") });
+    // A PDF shows its first page like a picture (zoomable; the book button reads the whole file).
     const isPdf = isPdfDocument(item);
     const pdf = isPdf ? await pdfPreview(item.src) : null;
     const isDocument = (item.kind === "document") && !isPdf;
@@ -293,8 +315,10 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     // both for showing and for the editor's starting value.
     const docPageRaw = isDocument ? foundry.utils.cleanHTML(docPages[this.#docPage] ?? "") : "";
     return {
+      card,
       isDocument,
       isPdf,
+      isPhoto: !isDocument && !isPdf,
       pdfPreview: pdf ? await pdf.url : null,
       pdfPages: pdf?.pages ?? 0,
       pdfBroken: isPdf && !pdf,
@@ -308,19 +332,16 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
       id: page.id,
       uuid: page.uuid,
       title: item.title,
+      untitled: !item.title,
       src: item.src,
       notes: item.notes,
       notesHTML: await TE.enrichHTML(item.notes, { secrets: editable, relativeTo: page }),
-      hasNotes: !!item.notes.trim(),
+      hasNotes: !!plainText(item.notes).trim() || /<(img|hr|table)/i.test(item.notes),
       editable,
       hidden: item.hidden,
-      category: catById.get(item.category) ?? null,
-      categories: cats.map(c => ({ id: c.id, name: c.name, selected: c.id === item.category })),
+      category,
       placements: item.placements.map(p => ({ ...p, current: p.sceneId === board?.id })),
-      // Where "take everyone there" goes: this board if it's here, else the first board it's on.
-      gmJump: onCurrent ?? item.placements[0] ?? null,
       canPlace: isBoard(board) && canEditBoard(board) && !onCurrent,
-      onCurrent: !!onCurrent,
       boardName: isBoard(board) ? board.name : null,
       link: item.link ? { uuid: item.link, name: link?.name ?? t("Journal.Source") } : null,
       author: game.users.get(item.author)?.name ?? null
@@ -334,17 +355,26 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   /** @override */
   _onFirstRender(context, options) {
     super._onFirstRender(context, options);
-    // Deferred live updates land once the user leaves the field they were typing in. (The root
-    // element outlives re-renders, so this is wired once.)
+    // The root element outlives re-renders, so these are wired once.
+    // Deferred live updates land once the user leaves the field they were typing in.
     this.element.addEventListener("focusout", () => setTimeout(() => {
       if ( this.#pending && !this.#isBusy() ) this.render();
     }, 0));
+    // Keys reach the document even when focus isn't inside the window (a click on the page
+    // doesn't focus anything), and the document hears them before Foundry's own window listener.
+    this.#keyListener = ev => this.#onKeyDown(ev);
+    document.addEventListener("keydown", this.#keyListener);
+    this.element.style.setProperty("--mb-parchment", parchmentCss());
   }
 
   /** @override */
   _preRender(context, options) {
-    this.#scrollTop = this.element?.querySelector(".mb-list-rows")?.scrollTop ?? 0;
-    const search = this.element?.querySelector("input[name=search]");
+    const el = this.element;
+    const toc = el?.querySelector(".mb-toc-list");
+    const sheet = el?.querySelector(".mb-sheet");
+    if ( toc ) this.#scroll.toc = toc.scrollTop;
+    if ( sheet ) this.#scroll.sheet = sheet.scrollTop;
+    const search = el?.querySelector("input[name=search]");
     this.#searchFocus = (search && (document.activeElement === search)) ? [search.selectionStart, search.selectionEnd] : null;
     return super._preRender(context, options);
   }
@@ -353,8 +383,10 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   _onRender(context, options) {
     super._onRender(context, options);
     const el = this.element;
-    const rowsEl = el.querySelector(".mb-list-rows");
-    if ( rowsEl ) rowsEl.scrollTop = this.#scrollTop;
+    const toc = el.querySelector(".mb-toc-list");
+    const sheet = el.querySelector(".mb-sheet");
+    if ( toc ) toc.scrollTop = this.#scroll.toc;
+    if ( sheet ) sheet.scrollTop = this.#scroll.sheet;
     if ( this.#searchFocus ) {
       const search = el.querySelector("input[name=search]");
       search?.focus();
@@ -365,62 +397,79 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
       this.#query = ev.target.value;
       this.#filter();
     });
-    el.querySelector("select[name=sort]")?.addEventListener("change", ev => {
-      this.#sort = ev.target.value;
-      this.#savePrefs();
-      ev.target.blur();
-      this.render();
-    });
-    el.querySelector("select[name=placement]")?.addEventListener("change", ev => {
-      this.#placement = ev.target.value;
-      this.#savePrefs();
-      ev.target.blur();
-      this.render();
-    });
 
-    for ( const row of el.querySelectorAll(".mb-list-row[data-card-id]") ) {
-      row.addEventListener("dblclick", () => this.#openOrJump(row.dataset.cardId));
-      row.addEventListener("contextmenu", ev => {
+    for ( const cell of el.querySelectorAll(".mb-cell[data-card-id]") ) {
+      cell.addEventListener("dblclick", () => this.#openOrJump(cell.dataset.cardId));
+      cell.addEventListener("contextmenu", ev => {
         ev.preventDefault();
-        this.#itemMenu(row.dataset.cardId, ev.clientX, ev.clientY);
+        this.#itemMenu(cell.dataset.cardId, ev.clientX, ev.clientY);
       });
     }
-    for ( const row of el.querySelectorAll(".mb-list-group[data-kind=folder]") ) {
+    for ( const row of el.querySelectorAll("[data-kind=folder][data-group-id]") ) {
       row.addEventListener("contextmenu", ev => {
         ev.preventDefault();
         openFolderMenu(this.organizer, row.dataset.groupId, ev.clientX, ev.clientY);
       });
     }
     this.#activateDragDrop(el, context.editable);
-    this.#activateDetail(el);
-    this.#stage.attach(el.querySelector(".mb-journal-detail [data-stage]"), `${this.#selected}|${context.selected?.src ?? ""}`);
-    this.#watchPaper(el.querySelector(".mb-journal-detail [data-doc-paper]"));
+    this.#activateReading(el);
+    this.#loadPdfThumbs(el);
+    this.#stage.attach(el.querySelector(".mb-exhibit [data-stage]"), `${this.#selected}|${context.selected?.src ?? ""}`);
     this.#filter();
   }
 
   /** @override */
   _preClose(options) {
+    document.removeEventListener("keydown", this.#keyListener);
+    this.#keyListener = null;
     this.#stage.detach();
-    this.#watchPaper(null);
     return super._preClose(options);
   }
 
-  /** The detail pane's fields save as they change. */
-  #activateDetail(el) {
+  /** A PDF's card shows its first page once it's been drawn (pdf.js, cached per file). */
+  async #loadPdfThumbs(el) {
+    for ( const img of el.querySelectorAll("img[data-pdf-src]") ) {
+      try {
+        const pdf = await pdfPreview(img.dataset.pdfSrc);
+        const url = pdf ? await pdf.url : null;
+        if ( !url || !img.isConnected ) continue;
+        img.src = url;
+        img.hidden = false;
+        img.closest(".mb-card")?.classList.add("has-preview");
+      } catch(err) { /* the card keeps its typeset title */ }
+    }
+  }
+
+  /** The reading spread's fields save as they change. */
+  #activateReading(el) {
     const page = this.document.pages.get(this.#selected);
     if ( !page ) return;
-    el.querySelector(".mb-journal-detail input[name=title]")?.addEventListener("change", ev => {
-      const name = ev.target.value.trim();
-      if ( name && (name !== page.name) ) page.update({ name });
-    });
-    el.querySelector(".mb-journal-detail select[name=category]")?.addEventListener("change", ev => {
-      setCardCategory(this.organizer, [page.id], ev.target.value || null);
-    });
-    el.querySelector(".mb-journal-detail prose-mirror[name=notes]")?.addEventListener("change", ev => {
+    const title = el.querySelector(".mb-reading [name=title]");
+    if ( title ) {
+      const fit = () => {
+        title.style.height = "auto";
+        title.style.height = `${title.scrollHeight}px`;
+      };
+      fit();
+      title.addEventListener("input", fit);
+      // Enter finishes the title rather than adding a line.
+      title.addEventListener("keydown", ev => {
+        if ( ev.key === "Enter" ) {
+          ev.preventDefault();
+          title.blur();
+        }
+      });
+      title.addEventListener("change", () => {
+        const name = title.value.replace(/\s+/g, " ").trim();
+        if ( name && (name !== page.name) ) page.update({ name });
+        else title.value = page.name;
+      });
+    }
+    el.querySelector(".mb-reading prose-mirror[name=notes]")?.addEventListener("change", ev => {
       page.update({ "system.notes": ev.target.value ?? "" });
     });
     // A text document's page: the whole list of pages is written back with this one replaced.
-    el.querySelector(".mb-journal-detail prose-mirror[name=docPage]")?.addEventListener("change", ev => {
+    el.querySelector(".mb-exhibit prose-mirror[name=docPage]")?.addEventListener("change", ev => {
       const pages = this.#docPages(page);
       pages[this.#docPage] = ev.target.value ?? "";
       page.update({ "system.pages": pages });
@@ -433,6 +482,30 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     return pages.length ? pages : [""];
   }
 
+  /**
+   * ← → turn pages while reading, Esc goes back to the contents, / jumps to the search: while this
+   * is the front window and the key isn't meant for something else.
+   */
+  #onKeyDown(ev) {
+    if ( ev.ctrlKey || ev.metaKey || ev.altKey || ev.defaultPrevented || isTyping(ev.target) ) return;
+    if ( (ui.activeWindow !== this) || !this.rendered || this.minimized ) return;
+    const focus = document.activeElement;
+    if ( focus && (focus !== document.body) && !this.element.contains(focus) ) return;
+    if ( document.getElementById("dimancer-board-menu") ) return;
+    const reading = !!this.#selected;
+    if ( reading && ((ev.key === "ArrowLeft") || (ev.key === "ArrowRight")) ) {
+      ev.preventDefault();
+      this.#turn(ev.key === "ArrowLeft" ? -1 : 1);
+    } else if ( reading && (ev.key === "Escape") ) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.#select(null);
+    } else if ( !reading && (ev.key === "/") ) {
+      ev.preventDefault();
+      this.element.querySelector("input[name=search]")?.focus();
+    }
+  }
+
   /* -------------------------------------------- */
   /*  Search and collapsing                       */
   /* -------------------------------------------- */
@@ -440,28 +513,37 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   #filter() {
     const el = this.element;
     const q = this.#query.trim().toLowerCase();
-    const words = q ? q.split(/\s+/) : [];
-    const rows = [...el.querySelectorAll(".mb-list-rows > li")];
-    const shownGroups = new Set();
     let matches = 0;
-    for ( const row of rows ) {
-      if ( row.dataset.cardId === undefined ) continue;
-      const match = words.every(w => row.dataset.search.includes(w));
-      const ancestors = row.dataset.ancestors ? row.dataset.ancestors.split(" ").filter(Boolean) : [];
-      row.hidden = !match || (!q && ancestors.some(a => this.#collapsed.has(a)));
+    const matchedSections = new Set();
+    for ( const cell of el.querySelectorAll(".mb-cell[data-card-id]") ) {
+      const match = matchesQuery(cell.dataset.search, q);
+      cell.hidden = !match;
       if ( match ) {
         matches++;
-        ancestors.forEach(a => shownGroups.add(a));
+        matchedSections.add(cell.closest(".mb-section")?.dataset.section);
       }
     }
-    for ( const row of rows ) {
-      if ( row.dataset.groupKey === undefined ) continue;
-      const ancestors = row.dataset.ancestors ? row.dataset.ancestors.split(" ").filter(Boolean) : [];
-      if ( q ) row.hidden = !shownGroups.has(row.dataset.groupKey);
-      else row.hidden = ancestors.some(a => this.#collapsed.has(a));
-      row.classList.toggle("collapsed", !q && this.#collapsed.has(row.dataset.groupKey));
+    const ancestorsOf = node => (node.dataset.ancestors ? node.dataset.ancestors.split(" ").filter(Boolean) : []);
+    for ( const section of el.querySelectorAll(".mb-section") ) {
+      const key = section.dataset.section;
+      const above = ancestorsOf(section).some(a => this.#collapsed.has(a));
+      const collapsed = this.#collapsed.has(key);
+      if ( q ) {
+        // Searching shows every match, collapsed or not, and only the chapters that have some.
+        section.hidden = !matchedSections.has(key);
+        section.classList.remove("collapsed");
+      } else {
+        section.hidden = above;
+        section.classList.toggle("collapsed", collapsed);
+      }
     }
-    const nomatch = el.querySelector(".mb-list-nomatch");
+    for ( const entry of el.querySelectorAll(".mb-toc-entry[data-section]") ) {
+      const key = entry.dataset.section;
+      entry.hidden = ancestorsOf(entry).some(a => this.#collapsed.has(a));
+      entry.classList.toggle("collapsed", this.#collapsed.has(key));
+      entry.classList.toggle("no-match", !!q && !matchedSections.has(key));
+    }
+    const nomatch = el.querySelector(".mb-nomatch");
     if ( nomatch ) nomatch.hidden = !q || (matches > 0);
     const clear = el.querySelector("[data-action=clearSearch]");
     if ( clear ) clear.hidden = !q;
@@ -472,53 +554,55 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   /* -------------------------------------------- */
 
   /**
-   * Rows drag in two ways at once: onto a folder or category here (filing), and onto a board
-   * canvas (Foundry's own JournalEntryPage drop data, which pins the page there).
+   * Cards drag in two ways at once: onto a chapter here (filing), and onto a board canvas
+   * (Foundry's own JournalEntryPage drop data, which pins the page there). Folders drag in the
+   * table of contents to nest them.
    */
   #activateDragDrop(el, editable) {
-    const list = el.querySelector(".mb-list-rows");
-    if ( !list ) return;
-    list.addEventListener("dragstart", ev => {
-      const row = ev.target.closest("[draggable=true]");
-      if ( !row ) return;
-      if ( row.dataset.cardId ) {
-        const page = this.document.pages.get(row.dataset.cardId);
-        ev.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ type: "card", id: row.dataset.cardId }));
+    const book = el.querySelector(".mb-spread");
+    if ( !book ) return;
+    book.addEventListener("dragstart", ev => {
+      const node = ev.target.closest?.("[draggable=true]");
+      if ( !node ) return;
+      if ( node.dataset.cardId ) {
+        const page = this.document.pages.get(node.dataset.cardId);
+        ev.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ type: "card", id: node.dataset.cardId }));
         ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "JournalEntryPage", uuid: page.uuid }));
         ev.dataTransfer.effectAllowed = "copyMove";
+        const card = node.querySelector(".mb-card");
+        if ( card ) ev.dataTransfer.setDragImage(card, card.offsetWidth / 2, card.offsetHeight / 3);
       } else {
-        ev.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ type: "folder", id: row.dataset.groupId }));
+        ev.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ type: "folder", id: node.dataset.groupId }));
         ev.dataTransfer.effectAllowed = "move";
       }
-      row.classList.add("dragging");
+      node.classList.add("dragging");
     });
-    list.addEventListener("dragend", ev => ev.target.closest?.(".dragging")?.classList.remove("dragging"));
+    book.addEventListener("dragend", ev => ev.target.closest?.(".dragging")?.classList.remove("dragging"));
     if ( !editable ) return;
 
+    // A chapter: its entry in the contents, or its section on the contact sheet.
     const targetOf = ev => {
-      const row = ev.target.closest("li");
-      if ( row?.dataset.groupKey !== undefined ) return { el: row, kind: row.dataset.kind, id: row.dataset.groupId };
-      if ( row?.dataset.cardId !== undefined ) {
-        const parent = (row.dataset.ancestors || "").split(" ").filter(Boolean).at(-1);
-        const groupRow = parent ? list.querySelector(`li[data-group-key="${parent}"]`) : null;
-        if ( groupRow ) return { el: groupRow, kind: groupRow.dataset.kind, id: groupRow.dataset.groupId };
-      }
-      return { el: list, kind: this.#mode === "folders" ? "folder" : (this.#mode === "categories" ? "category" : null), id: "" };
+      const node = ev.target.closest?.("[data-section]");
+      if ( !node ) return null;
+      if ( node.dataset.kind ) return { el: node, kind: node.dataset.kind, id: node.dataset.groupId };
+      // Loose evidence: out of any folder (folders view only).
+      if ( this.#mode === "folders" ) return { el: node, kind: "folder", id: "" };
+      return null;
     };
     const clearHighlight = () => el.querySelectorAll(".drop-target").forEach(e => e.classList.remove("drop-target"));
-    list.addEventListener("dragover", ev => {
+    book.addEventListener("dragover", ev => {
       if ( !ev.dataTransfer.types.includes(DRAG_TYPE) ) return;
       const target = targetOf(ev);
-      if ( !target.kind ) return;
+      if ( !target ) return;
       ev.preventDefault();
       ev.dataTransfer.dropEffect = "move";
       clearHighlight();
       target.el.classList.add("drop-target");
     });
-    list.addEventListener("dragleave", ev => {
-      if ( !list.contains(ev.relatedTarget) ) clearHighlight();
+    book.addEventListener("dragleave", ev => {
+      if ( !book.contains(ev.relatedTarget) ) clearHighlight();
     });
-    list.addEventListener("drop", async ev => {
+    book.addEventListener("drop", async ev => {
       clearHighlight();
       let payload;
       try {
@@ -527,11 +611,11 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
         return;
       }
       const target = targetOf(ev);
-      if ( !target.kind ) return;
+      if ( !target ) return;
       ev.preventDefault();
       const org = this.organizer;
       if ( payload.type === "folder" ) {
-        if ( target.kind === "folder" ) await moveFolder(org, payload.id, target.id || null);
+        if ( (target.kind === "folder") && (target.id !== payload.id) ) await moveFolder(org, payload.id, target.id || null);
         return;
       }
       if ( target.kind === "folder" ) await moveCardsToFolder(org, [payload.id], target.id || null);
@@ -540,7 +624,7 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
   }
 
   /* -------------------------------------------- */
-  /*  Menus and actions                           */
+  /*  Navigation                                  */
   /* -------------------------------------------- */
 
   /** The boards this user can open (every board for a GM), in navigation order. */
@@ -549,10 +633,18 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
       .sort((a, b) => (a.navOrder - b.navOrder) || a.name.localeCompare(b.name));
   }
 
+  /** Read a piece (null: back to the contents). */
   #select(pageId) {
     if ( pageId !== this.#selected ) this.#docPage = 0;
     this.#selected = pageId;
     this.render();
+  }
+
+  #turn(step) {
+    const order = this.#order.includes(this.#selected) ? this.#order : this.document.pages.contents.map(p => p.id);
+    const { prev, next } = pageTurn(order, this.#selected);
+    const id = step < 0 ? prev : next;
+    if ( id ) this.#select(id);
   }
 
   /** Double-click: go to where it's pinned (this board first), or look at the image. */
@@ -562,7 +654,6 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     const placements = boardPlacements().get(page.uuid) ?? [];
     const here = placements.find(p => p.sceneId === canvas.scene?.id) ?? placements[0];
     if ( here ) return focusCard(game.scenes.get(here.sceneId), here.cardId);
-    if ( page.src ) return this.#openImage(page);
     this.#select(pageId);
   }
 
@@ -574,28 +665,38 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     new foundry.applications.apps.ImagePopout({ src: page.src, uuid: page.uuid, window: { title: page.name } }).render({ force: true });
   }
 
+  /* -------------------------------------------- */
+  /*  Menus                                       */
+  /* -------------------------------------------- */
+
   #itemMenu(pageId, x, y) {
     const page = this.document.pages.get(pageId);
     if ( !page ) return;
-    this.#selected = pageId;
     const editable = canEditPage(page);
     const placements = boardPlacements().get(page.uuid) ?? [];
     const board = canvas.scene;
     const canPlace = isBoard(board) && canEditBoard(board) && !placements.some(p => p.sceneId === board.id);
+    const reading = this.#selected === pageId;
+    const esc = foundry.utils.escapeHTML;
     showMenu(x, y, menuItems([
+      !reading && { action: "read", icon: "fa-book-open", label: t("Journal.Read") },
       canPlace && { action: "place", icon: "fa-thumbtack", label: t("Journal.PlaceHere") },
-      ...placements.map(p => ({ action: "jump", data: { scene: p.sceneId, card: p.cardId }, icon: "fa-location-crosshairs", label: t("Journal.JumpTo", { name: foundry.utils.escapeHTML(p.sceneName) }) })),
+      ...placements.map(p => ({ action: "jump", data: { scene: p.sceneId, card: p.cardId }, icon: "fa-location-crosshairs", label: t("Journal.JumpTo", { name: esc(p.sceneName) }) })),
       page.src && ((page.system.kind === "document")
         ? { action: "image", icon: "fa-file-pdf", label: t("Journal.ReadPdf") }
-        : { action: "image", icon: "fa-image", label: t("Journal.ViewImage") }),
+        : { action: "image", icon: "fa-up-right-from-square", label: t("Journal.PopOut") }),
+      game.user.isGM && { separator: true },
       game.user.isGM && { action: "show", icon: "fa-users-viewfinder", label: t("Journal.ShowPlayers") },
-      ...(game.user.isGM ? placements.map(p => ({ action: "jumpAll", data: { scene: p.sceneId, card: p.cardId }, icon: "fa-people-arrows", label: t("Journal.JumpEveryone", { name: foundry.utils.escapeHTML(p.sceneName) }) })) : []),
+      ...(game.user.isGM ? placements.map(p => ({ action: "jumpAll", data: { scene: p.sceneId, card: p.cardId }, icon: "fa-people-arrows", label: t("Journal.JumpEveryone", { name: esc(p.sceneName) }) })) : []),
+      game.user.isGM && { action: "hide", icon: page.ownership.default === 0 ? "fa-eye" : "fa-eye-slash", label: t(page.ownership.default === 0 ? "Journal.Reveal" : "Journal.Hide") },
+      editable && { separator: true },
       editable && { action: "category", icon: "fa-tag", label: t("Category.Set") },
       editable && page.system.folder && { action: "unfile", icon: "fa-arrow-turn-up", label: t("Folder.ToRoot") },
-      game.user.isGM && { action: "hide", icon: page.ownership.default === 0 ? "fa-eye" : "fa-eye-slash", label: t(page.ownership.default === 0 ? "Journal.Reveal" : "Journal.Hide") },
+      ...(editable ? this.#otherJournals().map(j => ({ action: "move", data: { journal: j.id }, icon: "fa-book-bookmark", label: t("Journal.MoveTo", { name: esc(j.name) }) })) : []),
       editable && { action: "delete", icon: "fa-trash", label: t("Journal.Delete"), danger: true }
     ]), (action, button) => {
       switch ( action ) {
+        case "read": return this.#select(pageId);
         case "place": return placeOnBoard(page);
         case "jump": return focusCard(game.scenes.get(button.dataset.scene), button.dataset.card);
         case "image": return this.#openImage(page);
@@ -603,10 +704,32 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
         case "jumpAll": return focusCardForEveryone(game.scenes.get(button.dataset.scene), button.dataset.card);
         case "category": return openCategoryPicker(this.organizer, pageId, x, y);
         case "unfile": return moveCardsToFolder(this.organizer, [pageId], null);
+        case "move": return this.#move(page, game.journal.get(button.dataset.journal));
         case "hide": return setPageHidden(page, page.ownership.default !== 0);
         case "delete": return this.#confirmDelete(page);
       }
     });
+  }
+
+  /** The other journals this user can add to (where a page can move). */
+  #otherJournals() {
+    return evidenceJournals().filter(j => (j !== this.document) && canEditJournal(j));
+  }
+
+  /** Move a page to another journal; the reading spread goes back to the contents. */
+  async #move(page, target) {
+    if ( !target ) return;
+    if ( this.#selected === page.id ) this.#selected = null;
+    const moved = await movePage(page, target);
+    if ( moved ) ui.notifications.info(t("Journal.Moved", { name: page.name, journal: target.name }));
+  }
+
+  /** Show another journal in place of this one, in the same spot. */
+  #switchTo(entry) {
+    if ( !entry || (entry === this.document) ) return;
+    const { left, top, width, height } = this.position;
+    entry.sheet.render({ force: true, position: { left, top, width, height } });
+    this.close();
   }
 
   /** Delete a page; if it's pinned somewhere, ask whether its cards go too. */
@@ -628,29 +751,109 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     await deleteEvidence(page, { fromBoards: choice === "boards" });
   }
 
-  static #onSelect(event, target) {
-    const id = target.closest("[data-card-id]")?.dataset.cardId;
-    if ( id && (id !== this.#selected) ) this.#select(id);
+  /**
+   * GM: open this evidence for the players, with Foundry's own "Show Players" dialog (everyone or
+   * chosen players, optionally even while it's hidden from them). It opens in their Evidence Journal.
+   */
+  #showPlayers(page) {
+    if ( page && game.user.isGM ) foundry.documents.collections.Journal.showDialog(page, { parent: this });
   }
 
+  /* -------------------------------------------- */
+  /*  Actions                                     */
+  /* -------------------------------------------- */
+
+  static #onOpen(event, target) {
+    const id = target.closest("[data-card-id]")?.dataset.cardId;
+    if ( id ) this.#select(id);
+  }
+
+  static #onContents() {
+    this.#select(null);
+  }
+
+  static #onPrev() { this.#turn(-1); }
+
+  static #onNext() { this.#turn(1); }
+
   static #onToggle(event, target) {
-    if ( event.target.closest("[data-action=groupMenu]") ) return;
-    const key = target.closest("[data-group-key]")?.dataset.groupKey;
+    event.stopPropagation();
+    const key = target.closest("[data-section]")?.dataset.section;
     if ( !key ) return;
     if ( this.#collapsed.has(key) ) this.#collapsed.delete(key);
     else this.#collapsed.add(key);
     this.#savePrefs();
-    const icon = target.closest("li").querySelector(".mb-group-icon.is-folder");
-    if ( icon ) icon.className = `mb-group-icon is-folder fa-solid ${this.#collapsed.has(key) ? "fa-folder" : "fa-folder-open"} fa-fw`;
+    for ( const icon of this.element.querySelectorAll(`[data-section="${CSS.escape(key)}"] .mb-folder-icon`) ) {
+      icon.classList.toggle("fa-folder", this.#collapsed.has(key));
+      icon.classList.toggle("fa-folder-open", !this.#collapsed.has(key));
+    }
     this.#filter();
+  }
+
+  /** A chapter in the contents: scroll the contact sheet to it (opening it if it's collapsed). */
+  static #onGoto(event, target) {
+    const key = target.closest("[data-section]")?.dataset.section;
+    if ( key === undefined ) return;
+    const entry = this.element.querySelector(`.mb-toc-entry[data-section="${CSS.escape(key)}"]`);
+    const section = this.element.querySelector(`.mb-section[data-section="${CSS.escape(key)}"]`);
+    const ancestors = (entry?.dataset.ancestors ?? "").split(" ").filter(Boolean);
+    if ( [key, ...ancestors].some(k => this.#collapsed.has(k)) ) {
+      this.#collapsed.delete(key);
+      ancestors.forEach(a => this.#collapsed.delete(a));
+      this.#savePrefs();
+      this.#filter();
+    }
+    this.element.querySelectorAll(".mb-toc-entry.current").forEach(e => e.classList.remove("current"));
+    entry?.classList.add("current");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   static #onMode(event, target) {
     const mode = target.dataset.mode;
     if ( !mode || (mode === this.#mode) ) return;
     this.#mode = mode;
+    this.#scroll = { toc: 0, sheet: 0 };
     this.#savePrefs();
     this.render();
+  }
+
+  /** Sort and the placement filter, in one menu. */
+  static #onFilter(event, target) {
+    const r = target.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 4, menuItems([
+      { heading: t("List.SortLabel") },
+      ...SORTS.map(s => ({ action: "sort", data: { value: s }, icon: "fa-arrow-down-wide-short", active: s === this.#sort, label: t(s === "board" ? "Journal.SortOrder" : `List.Sort.${s}`) })),
+      { heading: t("Journal.PlacementLabel") },
+      ...PLACEMENTS.map(p => ({ action: "placement", data: { value: p }, icon: "fa-thumbtack", active: p === this.#placement, label: t(`Journal.Placement.${p}`) }))
+    ]), (action, button) => {
+      if ( action === "sort" ) this.#sort = button.dataset.value;
+      else if ( action === "placement" ) this.#placement = button.dataset.value;
+      this.#savePrefs();
+      this.render();
+    });
+  }
+
+  /** Add an image, a text document or a PDF. */
+  static #onAddMenu(event, target) {
+    const r = target.getBoundingClientRect();
+    showMenu(r.left, r.bottom + 4, menuItems([
+      { action: "image", icon: "fa-image", label: t("Journal.Add") },
+      { action: "document", icon: "fa-file-lines", label: t("Journal.AddDocument") },
+      { action: "pdf", icon: "fa-file-pdf", label: t("Journal.AddPdf") }
+    ]), async action => {
+      let page;
+      if ( action === "document" ) {
+        page = await createEvidencePage({ kind: "document", title: t("Document.Untitled") }, { hidden: game.user.isGM, entry: this.document });
+      } else {
+        page = await openAddEvidence({ target: "journal", entry: this.document, kind: action === "pdf" ? "pdf" : undefined, categories: categoriesOf(this.organizer) });
+      }
+      if ( page?.id ) this.#select(page.id);
+    });
+  }
+
+  static #onItemMenu(event, target) {
+    const r = target.getBoundingClientRect();
+    if ( this.#selected ) this.#itemMenu(this.#selected, r.left, r.bottom + 4);
   }
 
   static #onNewFolder() {
@@ -678,14 +881,9 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     this.#filter();
   }
 
-  static async #onAddEvidence() {
-    const page = await openAddEvidence({ target: "journal", categories: categoriesOf(this.organizer) });
-    if ( page?.id ) this.#select(page.id);
-  }
-
-  static async #onAddDocument() {
-    const page = await createEvidencePage({ kind: "document", title: t("Document.Untitled") }, { hidden: game.user.isGM });
-    if ( page?.id ) this.#select(page.id);
+  static #onPickCategory(event, target) {
+    const r = target.getBoundingClientRect();
+    if ( this.#selected ) openCategoryPicker(this.organizer, this.#selected, r.left, r.bottom + 4);
   }
 
   #goDocPage(step) {
@@ -730,24 +928,6 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     await page.update({ "system.pages": pages });
   }
 
-  /**
-   * GM: open this evidence for the players, with Foundry's own "Show Players" dialog (everyone or
-   * chosen players, optionally even while it's hidden from them). It opens in their Evidence Journal.
-   */
-  #showPlayers(page) {
-    if ( page && game.user.isGM ) foundry.documents.collections.Journal.showDialog(page, { parent: this });
-  }
-
-  static #onShowPlayers() {
-    this.#showPlayers(this.document.pages.get(this.#selected));
-  }
-
-  /** GM: take everyone to this evidence on a board it's pinned on. */
-  static #onJumpEveryone(event, target) {
-    const scene = game.scenes.get(target.dataset.sceneId);
-    if ( scene ) focusCardForEveryone(scene, target.dataset.cardId);
-  }
-
   /** Open a board: the only one straight away, or pick from a menu when there are several. */
   static #onOpenBoard(event, target) {
     const boards = this.#boards();
@@ -758,11 +938,6 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
       action: "board", data: { scene: s.id }, icon: "fa-chalkboard", active: s === canvas.scene,
       label: foundry.utils.escapeHTML(s.name)
     }))), (action, button) => game.scenes.get(button.dataset.scene)?.view());
-  }
-
-  static async #onAddPdf() {
-    const page = await openAddEvidence({ target: "journal", kind: "pdf", categories: categoriesOf(this.organizer) });
-    if ( page?.id ) this.#select(page.id);
   }
 
   static #onPlace() {
@@ -780,11 +955,6 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
     if ( page ) setPageHidden(page, page.ownership.default !== 0);
   }
 
-  static #onDelete() {
-    const page = this.document.pages.get(this.#selected);
-    if ( page ) this.#confirmDelete(page);
-  }
-
   static #onOpenImage() {
     this.#openImage(this.document.pages.get(this.#selected));
   }
@@ -799,5 +969,32 @@ export default class EvidenceJournalSheet extends HandlebarsApplicationMixin(Doc
 
   static #onOpenLink(event, target) {
     if ( target.dataset.uuid ) openLinked(target.dataset.uuid);
+  }
+
+  /** The journal button: the other journals, making this one the default, a new journal. */
+  static #onJournals(event, target) {
+    const r = target.getBoundingClientRect();
+    const esc = foundry.utils.escapeHTML;
+    const isDefault = isDefaultJournal(this.document);
+    const journals = evidenceJournals();
+    showMenu(r.left, r.bottom + 4, menuItems([
+      { heading: t("Journal.Journals") },
+      ...journals.map(j => ({
+        action: "switch", data: { journal: j.id }, active: j === this.document,
+        icon: isDefaultJournal(j) ? "fa-star" : (j.ownership.default > 0 ? "fa-book" : "fa-user-lock"),
+        label: esc(j.name)
+      })),
+      { separator: true },
+      !isDefault && canEditJournal(this.document) && { action: "default", icon: "fa-star", label: t("Journal.MakeDefault") },
+      { action: "new", icon: "fa-book-medical", label: t("Journal.New") }
+    ]), (action, button) => {
+      if ( action === "switch" ) return this.#switchTo(game.journal.get(button.dataset.journal));
+      if ( action === "default" ) return setDefaultJournal(this.document);
+      if ( action === "new" ) return promptNewJournal();
+    });
+  }
+
+  static #onMakeDefault() {
+    setDefaultJournal(this.document);
   }
 }

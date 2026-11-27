@@ -4,6 +4,7 @@ import { scanlineTexture } from "./textures.mjs";
 import { placeDocument, placePhoto, placeTitle } from "./cards-classic.mjs";
 import { shade } from "./threads.mjs";
 import { NODE_COLOR } from "./pins.mjs";
+import { CARD_LOOKS } from "./card-look.mjs";
 
 /**
  * Holographic cards for a cyberpunk board: dark translucent panels with two corners cut off, a neon
@@ -11,9 +12,9 @@ import { NODE_COLOR } from "./pins.mjs";
  * terminal windows, notes as small panels lit in their colour.
  */
 
-const DISPLAY = "'Bruno Ace', Signika, sans-serif";
-const MONO = "'Courier New', Courier, monospace";
-const PANEL = 0x07101a;
+const LOOK = CARD_LOOKS.holo;
+const MONO = LOOK.fonts.note;
+const PANEL = LOOK.paper;
 
 /** The card's accent: its category's colour, or the default neon. */
 function accentOf(obj) {
@@ -64,8 +65,8 @@ function ticks(g, x, y, w, h, len, gap, width, color) {
 
 export default {
   id: "holo",
-  fonts: { title: DISPLAY, badge: MONO, tab: DISPLAY, note: MONO, docTitle: DISPLAY, docBody: MONO, docFoot: MONO },
-  colors: { title: 0xd6f6ff, badge: 0x7fdcff, note: 0xd6f6ff, docTitle: 0xd6f6ff, docBody: 0x8fe3ff, docFoot: 0x5fb8d6 },
+  fonts: LOOK.fonts,
+  colors: LOOK.colors,
   tabText: color => shade(color, 0.55),
   /** Note text glows in the note's own colour. */
   noteText: color => shade(color, 0.35),
@@ -76,7 +77,7 @@ export default {
     const { w, h, pad, left, top, fw, fh } = L;
     const color = accentOf(obj);
     panel(obj, chamfered(left, top, fw, fh, cutOf(L)), color, { line: Math.max(1.5, pad * 0.14) });
-    placePhoto(obj, w, h, { tint: 0xc4ecff, placeholder: [0x1a2a3a, 0x2f4d66] });
+    placePhoto(obj, w, h, { tint: LOOK.photoTint, placeholder: [0x1a2a3a, 0x2f4d66] });
     if ( obj.hasTexture ) scanlines(obj, -w / 2, -h / 2, w, h);
     ticks(obj.clip, -w / 2, -h / 2, w, h, pad * 1.4, pad * 0.35, Math.max(1.2, pad * 0.12), color);
     // A rule between the picture and the title strip.
@@ -95,8 +96,8 @@ export default {
       obj.frame.lineStyle({ width: 1.5, color, alpha: 0.35, join: PIXI.LINE_JOIN.MITER }).beginFill(PANEL, 0.7)
         .drawPolygon(offset(pts, i * w * 0.03, i * h * 0.02)).endFill().lineStyle(0);
     }
-    panel(obj, pts, color, { fill: 0x060c14, alpha: 0.94, line: Math.max(1.5, w * 0.01) });
-    const { pad, body, pdf } = placeDocument(obj, L, { tint: 0xcfefff });
+    panel(obj, pts, color, { fill: LOOK.docPaper, alpha: 0.94, line: Math.max(1.5, w * 0.01) });
+    const { pad, body, pdf } = placeDocument(obj, L, { tint: LOOK.docTint });
     if ( pdf && obj.hasTexture ) {
       scanlines(obj, -obj.sprite.width / 2, -obj.sprite.height / 2, obj.sprite.width, obj.sprite.height);
       return;

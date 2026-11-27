@@ -6,9 +6,14 @@
 let current = null;
 let lastPos = { x: 100, y: 100 };
 
-/** A menu item list as HTML. Items: {action, icon, label, danger?, data?} */
+/**
+ * A menu item list as HTML. Items: {action, icon, label, danger?, data?, active?, color?}, or
+ * {heading: "Label"} for a section title, or {separator: true}.
+ */
 export function menuItems(items) {
   return `<ol>${items.filter(Boolean).map(i => {
+    if ( i.heading ) return `<li class="mb-menu-heading">${i.heading}</li>`;
+    if ( i.separator ) return '<li class="mb-menu-separator" role="separator"></li>';
     const data = Object.entries(i.data ?? {}).map(([k, v]) => ` data-${k}="${foundry.utils.escapeHTML(String(v))}"`).join("");
     const swatch = i.color ? `<span class="mb-menu-dot" style="--swatch: ${i.color}"></span>` : "";
     const icon = i.icon ? `<i class="fa-solid ${i.icon} fa-fw" inert></i>` : "";

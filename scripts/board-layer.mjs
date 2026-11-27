@@ -29,7 +29,7 @@ import { setAnimation } from "./render/animation.mjs";
 import { closePenBar, penPrefs, showPenBar } from "./pen-bar.mjs";
 import { closeNoteEditor, editNote } from "./note-editor.mjs";
 import {
-  canEditJournal, createEvidencePage, getEvidenceJournal, linkCardToJournal,
+  canEditJournal, defaultJournal, journalToFileInto, linkCardToJournal,
   newDocument, openEvidenceJournal, pageOfCard, removeCards
 } from "./journal-store.mjs";
 
@@ -146,7 +146,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
           title: "DIMANCER_BOARD.Controls.Journal",
           icon: "fa-solid fa-book",
           button: true,
-          visible: game.user.isGM || !!getEvidenceJournal()?.visible,
+          visible: true,
           onChange: () => openEvidenceJournal()
         },
         add: {
@@ -164,7 +164,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
           title: "DIMANCER_BOARD.Controls.Document",
           icon: "fa-solid fa-file-lines",
           button: true,
-          visible: editable && (game.user.isGM || canEditJournal()),
+          visible: editable,
           onChange: () => newDocument({ place: true })
         },
         lock: {
@@ -993,6 +993,14 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     return editNote(this, cardId);
   }
 
+  /** File a card pinned straight onto the board into this user's default journal (it stays pinned). */
+  async fileCard(cardId) {
+    const journal = await journalToFileInto();
+    if ( !canEditJournal(journal) ) return;
+    const page = await linkCardToJournal(this.scene, cardId, journal);
+    if ( page ) ui.notifications.info(t("Journal.Filed", { count: 1, name: journal.name }));
+  }
+
   /** Double-click: open evidence in the Evidence Journal, write on a note. */
   openCard(cardId) {
     const card = getCard(this.scene, cardId);
@@ -1002,16 +1010,20 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   }
 
   /**
-   * Show a piece of evidence in the Evidence Journal. A card that isn't in the journal yet (pinned
-   * before it existed) is added first, when this user may; otherwise an image just opens on its own.
+   * Show a piece of evidence in its journal. A card that isn't in one yet (pinned straight onto the
+   * board) is filed into this user's default journal first, when they may; otherwise an image just
+   * opens on its own.
    */
   async openInJournal(cardId) {
     this.closeMenu();
     const card = getCard(this.scene, cardId);
     if ( !card ) return;
     let page = pageOfCard(card);
-    if ( !page && canEditCard(this.scene, card) && canEditJournal() ) page = await linkCardToJournal(this.scene, cardId);
-    if ( page ) return openEvidenceJournal({ pageId: page.id });
+    if ( !page && canEditCard(this.scene, card) ) {
+      const journal = await journalToFileInto();
+      if ( canEditJournal(journal) ) page = await linkCardToJournal(this.scene, cardId, journal);
+    }
+    if ( page ) return openEvidenceJournal({ entry: page.parent, pageId: page.id });
     if ( (card.kind === "image") && card.src ) {
       return new foundry.applications.apps.ImagePopout({ src: card.src, window: { title: card.title || t("Card.Untitled") } }).render({ force: true });
     }
@@ -1084,14 +1096,14 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
    * @param {string|null} [data.link]  Source document UUID
    * @param {{width: number, height: number}|null} [data.size]  Natural image size, if known
    * @param {string} [data.notes]
-   * @param {string|null} [data.page]   The Evidence Journal page it shows (placing from the journal)
+   * @param {string|null} [data.page]   The Evidence Journal page it shows (placing from a journal).
+   *   Evidence pinned straight onto a board has none: it's filed into a journal when it's taken off.
    * @param {boolean} [data.hidden]
-   * @param {boolean} [data.journal]    Also add it to the Evidence Journal (when it has no page yet)
    * @param {"image"|"document"} [data.kind]  A text document is drawn as A4 paper instead
    * @param {string[]} [data.docPages]  A document's pages (HTML each)
    */
   async addCard({ src = "", x, y, title = "", link = null, size = null, category = null, folder = null,
-    notes = "", page = null, hidden = false, journal = true, kind = "image", docPages }) {
+    notes = "", page = null, hidden = false, kind = "image", docPages }) {
     const scene = this.scene;
     if ( !canEditBoard(scene) ) {
       ui.notifications.warn(t("Notify.NoEdit"));
@@ -1101,14 +1113,6 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
     const document = kind === "document";
     // A text document is A4; a PDF takes its first page's shape.
     size ??= document ? (src ? await pdfCardSize(src) : A4) : await imageSize(src);
-    // Evidence pinned on a board also goes into the Evidence Journal (POC), as a page this card shows.
-    if ( !page && journal && canEditJournal() ) {
-      try {
-        page = (await createEvidencePage({ title, src, notes, link, kind, docPages }, { hidden }))?.uuid ?? null;
-      } catch(err) {
-        console.warn("dimancer_board | could not add evidence to the journal", err);
-      }
-    }
     const card = newCard({
       id: foundry.utils.randomID(), src, ...centre, title, link, category, folder, notes, page, hidden,
       kind: document ? "document" : "image", docPages,
@@ -1125,26 +1129,37 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
   }
 
   /**
-   * Take cards off the board. Evidence stays in the Evidence Journal: evidence not in it yet is
-   * added first (when the user can add to the journal). Deleting evidence for good is done in the
-   * journal. Stickers, and evidence that can't go to the journal, are deleted, confirming first when
-   * someone else pinned them.
+   * Take cards off the board. Evidence is kept in a journal: evidence placed from a journal is still
+   * there, and evidence pinned straight onto the board is filed into this user's default journal
+   * (they're asked to create one if they have none). Deleting evidence for good is done in its
+   * journal. Stickers, and evidence that can't be filed, are deleted, confirming first when someone
+   * else pinned them.
    */
   async deleteCards(ids, { confirm = true } = {}) {
     const scene = this.scene;
     const cards = ids.map(id => getCard(scene, id)).filter(c => c && canEditCard(scene, c));
     if ( !cards.length ) return;
-    const toJournal = c => !!c.page || (isEvidence(c) && canEditJournal());
+    const unfiled = cards.filter(c => !c.page && isEvidence(c));
+    const journal = unfiled.length ? await journalToFileInto() : null;
+    const toJournal = c => !!c.page || (isEvidence(c) && canEditJournal(journal));
     const lost = cards.filter(c => !toJournal(c));
-    if ( confirm && lost.some(c => c.author && (c.author !== game.user.id)) ) {
-      const ok = await foundry.applications.api.DialogV2.confirm({
-        window: { title: t("Card.DeleteTitle") },
-        content: `<p>${t("Card.DeleteOthers", { title: foundry.utils.escapeHTML(cardLabel(lost[0])) })}</p>`
-      });
+    // Evidence that can't be filed (no journal to file it in) would be gone for good: always ask.
+    const lostEvidence = lost.filter(c => isEvidence(c));
+    const others = lost.find(c => c.author && (c.author !== game.user.id));
+    if ( lostEvidence.length || (confirm && others) ) {
+      const content = lostEvidence.length
+        ? t("Card.DeleteUnfiled", { count: lostEvidence.length, title: foundry.utils.escapeHTML(cardLabel(lostEvidence[0])) })
+        : t("Card.DeleteOthers", { title: foundry.utils.escapeHTML(cardLabel(others)) });
+      const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: t("Card.DeleteTitle") }, content: `<p>${content}</p>` });
       if ( !ok ) return;
     }
     this.select(null);
-    for ( const c of cards ) if ( !c.page && toJournal(c) ) await linkCardToJournal(scene, c.id);
+    let filed = 0;
+    for ( const c of cards ) {
+      if ( c.page || !toJournal(c) ) continue;
+      if ( await linkCardToJournal(scene, c.id, journal) ) filed++;
+    }
+    if ( filed ) ui.notifications.info(t("Journal.Filed", { count: filed, name: journal.name }));
     // A card's threads go with it, in the same update (removeCards).
     return removeCards(scene, cards.map(c => c.id).filter(id => getCard(scene, id)));
   }
@@ -1224,7 +1239,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       gm && { action: "hide", icon: card.hidden ? "fa-eye" : "fa-eye-slash", label: t(card.hidden ? "Card.Reveal" : "Card.Hide") },
       gm && { action: "lock", icon: card.locked ? "fa-lock-open" : "fa-lock", label: t(card.locked ? "Card.Unlock" : "Card.Lock") },
       // Evidence Journal (POC)
-      editable && isEvidence(card) && !card.page && canEditJournal() && { action: "addJournal", icon: "fa-book-medical", label: t("Journal.AddToJournal") },
+      editable && isEvidence(card) && !card.page && { action: "addJournal", icon: "fa-book-medical", label: defaultJournal() ? t("Journal.AddTo", { name: foundry.utils.escapeHTML(defaultJournal().name) }) : t("Journal.AddToJournal") },
       // Evidence stays in the journal; deleting it for good is done there.
       editable && { action: "remove", icon: "fa-right-from-bracket", label: t("Card.Remove") }
     ];
@@ -1338,7 +1353,7 @@ export default class BoardLayer extends foundry.canvas.layers.InteractionLayer {
       case "hide": return this.patchCard(id, { hidden: !card.hidden });
       case "lock": return this.patchCard(id, { locked: !card.locked });
       case "remove": return this.deleteCards([id]);
-      case "addJournal": return linkCardToJournal(this.scene, id);
+      case "addJournal": return this.fileCard(id);
     }
   }
 

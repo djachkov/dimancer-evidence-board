@@ -151,3 +151,60 @@ export function evidencePageData({ title, src = "", notes = "", link = null, aut
   if ( Number.isFinite(sort) ) data.sort = sort;
   return data;
 }
+
+/* -------------------------------------------- */
+/*  Evidence journals                           */
+/* -------------------------------------------- */
+
+/** The looks a journal (and the cards in it) can have, chosen when it's created. */
+export const JOURNAL_STYLES = Object.freeze(["classic", "parchment", "holo"]);
+
+/** A journal's style, from its flag (journals from before styles existed are classic). */
+export function journalStyle(flag) {
+  return JOURNAL_STYLES.includes(flag?.style) ? flag.style : "classic";
+}
+
+/**
+ * Who may use a new journal.
+ * - Shared: every player owns it (adds, edits and files evidence), like the first journal.
+ * - Private: only its creator (the GM always sees everything, so a GM's private journal is theirs alone).
+ * @param {{shared: boolean, userId: string, isGM: boolean}} options
+ */
+export function journalOwnership({ shared, userId, isGM }) {
+  if ( shared ) return { default: LEVELS.OWNER };
+  const ownership = { default: LEVELS.NONE };
+  if ( !isGM && userId ) ownership[userId] = LEVELS.OWNER;
+  return ownership;
+}
+
+/**
+ * The journal a user's evidence goes to: the one they marked as their default, while they can still
+ * add to it; otherwise the first journal they can add to.
+ * @param {Array<{id: string, editable: boolean}>} journals  In display order
+ * @param {string|null} preferred   The id the user marked
+ * @returns {string|null}
+ */
+export function pickDefaultJournal(journals, preferred) {
+  const marked = journals.find(j => (j.id === preferred) && j.editable);
+  return (marked ?? journals.find(j => j.editable))?.id ?? null;
+}
+
+/**
+ * Creation data for a page moved into another journal: the same evidence, without the folder (folders
+ * belong to a journal) and with the category only if the new journal has it.
+ * @param {object} source        The page's source data (toObject())
+ * @param {Set<string>} categories  The category ids the target journal has
+ * @param {number} sort
+ */
+export function movedPageData(source, categories, sort) {
+  const system = { ...(source.system ?? {}), folder: null };
+  if ( system.category && !categories.has(system.category) ) system.category = null;
+  return {
+    name: source.name,
+    type: source.type,
+    src: source.src ?? null,
+    system,
+    ownership: { default: isPageHidden(source.ownership) ? LEVELS.NONE : LEVELS.INHERIT },
+    sort
+  };
+}

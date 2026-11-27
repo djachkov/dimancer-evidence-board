@@ -3,6 +3,7 @@ import { isPdfDocument } from "../pdf-preview.mjs";
 import { parchmentTexture } from "./textures.mjs";
 import { placeDocument, placePhoto, placeTitle } from "./cards-classic.mjs";
 import { shade } from "./threads.mjs";
+import { CARD_LOOKS } from "./card-look.mjs";
 
 /**
  * Parchment cards for a quest board: every card is a sheet with a torn edge (the same edge for the
@@ -10,8 +11,8 @@ import { shade } from "./threads.mjs";
  * sealed with wax, notes are tinted scraps and the category tab is a ribbon.
  */
 
-const SERIF = "Amiri, Georgia, serif";
-const DISPLAY = "'Modesto Condensed', Georgia, serif";
+const LOOK = CARD_LOOKS.parchment;
+const SERIF = LOOK.fonts.note;
 
 /** Torn-edge outlines by seed (fractions of the paper). */
 const edges = new Map();
@@ -83,8 +84,8 @@ function waxSeal(g, x, y, r, color, seed) {
 
 export default {
   id: "parchment",
-  fonts: { title: DISPLAY, badge: SERIF, tab: DISPLAY, note: SERIF, docTitle: DISPLAY, docBody: SERIF, docFoot: SERIF },
-  colors: { title: 0x3a2814, badge: 0x7a4a1a, note: 0x2a1c10, docTitle: 0x24170b, docBody: 0x3a2a18, docFoot: 0x6b5232 },
+  fonts: LOOK.fonts,
+  colors: LOOK.colors,
   tabText: () => 0xfff4dc,
   noteEditor: color => ({ paper: color, ink: "#2a1c10", font: SERIF }),
 
@@ -95,7 +96,7 @@ export default {
     const pts = tornOutline(L, seed);
     softShadow(obj, pts);
     sheet(obj.frame, pts, seed, { rim: rimOf(L) });
-    placePhoto(obj, w, h, { tint: 0xf2dfc4, placeholder: [0x8a7a62, 0xb5a586] });
+    placePhoto(obj, w, h, { tint: LOOK.photoTint, placeholder: [0x8a7a62, 0xb5a586] });
     obj.clip.lineStyle({ width: Math.max(1, pad * 0.12), color: 0x4a3418, alpha: 0.45 }).drawRect(-w / 2, -h / 2, w, h).lineStyle(0);
     placeTitle(obj, L, { size: 0.55 });
   },
@@ -108,16 +109,16 @@ export default {
     const count = Math.max(1, isPdfDocument(obj.card) ? obj.pdfPages : obj.card.docPages.length);
     softShadow(obj, pts);
     const rim = rimOf(L);
-    const under = [[2.4, fw * 0.02, fh * 0.012, 0xe8d8b8], [-1.8, -fw * 0.015, fh * 0.02, 0xd8c6a0]];
+    const under = [[2.4, fw * 0.02, fh * 0.012, LOOK.under[0]], [-1.8, -fw * 0.015, fh * 0.02, LOOK.under[1]]];
     for ( let i = Math.min(count - 1, under.length) - 1; i >= 0; i-- ) {
       const [deg, dx, dy, tint] = under[i];
       sheet(obj.frame, turn(tornOutline(L, seed + i + 1), deg, dx, dy), seed + i + 1, { tint, rim });
     }
     sheet(obj.frame, pts, seed, { rim });
-    placeDocument(obj, L, { tint: 0xf2e2c8 });
+    placeDocument(obj, L, { tint: LOOK.docTint });
     if ( count < 2 ) return;
     const category = obj.layer.categories?.get(obj.card.category);
-    const color = category ? Number.parseInt(category.color.slice(1), 16) : 0x8e1b1b;
+    const color = category ? Number.parseInt(category.color.slice(1), 16) : LOOK.seal;
     const r = Math.max(5, Math.min(fw, fh) * 0.075);
     // On the bottom-left corner, clear of the title and the page count.
     waxSeal(obj.clip, left + (r * 1.1), top + fh - (r * 1.1), r, color, seed);

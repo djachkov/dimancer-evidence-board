@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   EVIDENCE_TYPE, LEVELS, accessUpdate, cardPatchFromPage, evidencePageData, isPageHidden, journalOrder, pageItem,
-  pagePatchFromCard, placementIndex
+  pagePatchFromCard, placementIndex, JOURNAL_STYLES, journalStyle, journalOwnership, pickDefaultJournal, movedPageData
 } from "../scripts/journal-pages.mjs";
 import { normalizeCard } from "../scripts/cards.mjs";
 import { listRows } from "../scripts/organize.mjs";
@@ -131,4 +131,47 @@ test("text documents: page items, creation data and mirroring of their pages", (
   // An image card never carries (or pushes) pages.
   const image = normalizeCard({ kind: "image", title: item.title, notes: item.notes, src: item.src, page: item.uuid }, "i");
   assert.equal(cardPatchFromPage(image, item).docPages, undefined);
+});
+
+test("journalStyle falls back to classic", () => {
+  assert.equal(journalStyle({ style: "holo" }), "holo");
+  assert.equal(journalStyle({ style: "parchment" }), "parchment");
+  assert.equal(journalStyle({ version: 1 }), "classic");
+  assert.equal(journalStyle({ style: "neon" }), "classic");
+  assert.equal(journalStyle(undefined), "classic");
+  assert.deepEqual([...JOURNAL_STYLES], ["classic", "parchment", "holo"]);
+});
+
+test("journalOwnership: shared, a player's private, a GM's private", () => {
+  assert.deepEqual(journalOwnership({ shared: true, userId: "u1", isGM: false }), { default: LEVELS.OWNER });
+  assert.deepEqual(journalOwnership({ shared: false, userId: "u1", isGM: false }), { default: LEVELS.NONE, u1: LEVELS.OWNER });
+  assert.deepEqual(journalOwnership({ shared: false, userId: "gm", isGM: true }), { default: LEVELS.NONE });
+});
+
+test("pickDefaultJournal: the marked one while editable, else the first editable", () => {
+  const js = [{ id: "a", editable: false }, { id: "b", editable: true }, { id: "c", editable: true }];
+  assert.equal(pickDefaultJournal(js, "c"), "c");
+  assert.equal(pickDefaultJournal(js, "a"), "b", "marked but no longer editable");
+  assert.equal(pickDefaultJournal(js, "gone"), "b");
+  assert.equal(pickDefaultJournal(js, null), "b");
+  assert.equal(pickDefaultJournal([{ id: "a", editable: false }], "a"), null);
+  assert.equal(pickDefaultJournal([], null), null);
+});
+
+test("movedPageData drops the folder, keeps a known category and the hidden state", () => {
+  const source = {
+    name: "Letter", type: EVIDENCE_TYPE, src: "a.webp",
+    system: { kind: "image", notes: "<p>x</p>", category: "person", folder: "f1", author: "u" },
+    ownership: { default: LEVELS.NONE }
+  };
+  const moved = movedPageData(source, new Set(["person"]), 500);
+  assert.equal(moved.system.folder, null);
+  assert.equal(moved.system.category, "person");
+  assert.equal(moved.system.notes, "<p>x</p>");
+  assert.deepEqual(moved.ownership, { default: LEVELS.NONE });
+  assert.equal(moved.sort, 500);
+  assert.equal(source.system.folder, "f1", "source untouched");
+  const other = movedPageData({ ...source, ownership: { default: -1, u: 3 } }, new Set(), 0);
+  assert.equal(other.system.category, null);
+  assert.deepEqual(other.ownership, { default: LEVELS.INHERIT });
 });

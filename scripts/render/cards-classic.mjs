@@ -1,5 +1,6 @@
 import { NOTE_COLORS } from "../stickers.mjs";
 import { isPdfDocument } from "../pdf-preview.mjs";
+import { CARD_LOOKS } from "./card-look.mjs";
 
 /**
  * The classic card style of an investigation corkboard: photos in a polaroid frame, text documents
@@ -9,11 +10,9 @@ import { isPdfDocument } from "../pdf-preview.mjs";
  * all in the card's local space, inside the paper box `L` it's given. It never changes that box.
  */
 
-const PAPER = 0xf7f3ea;
-const DOC_PAPER = 0xfbfaf5;
-const DOC_EDGE = 0xd3ccba;
-const DOC_FONT = "Georgia, 'Times New Roman', serif";
-const SANS = "Signika, sans-serif";
+const LOOK = CARD_LOOKS.classic;
+const { paper: PAPER, docPaper: DOC_PAPER, docEdge: DOC_EDGE } = LOOK;
+const SANS = LOOK.fonts.note;
 
 /** The four corners of the paper turned by `degrees` around the card's centre and nudged by (dx, dy). */
 export function turnedSheet({ left, top, fw, fh }, degrees, dx, dy) {
@@ -88,8 +87,8 @@ export function placeDocument(obj, { w, h, left, top, fw, fh }, { tint = 0xfffff
 
 export default {
   id: "classic",
-  fonts: { title: SANS, badge: SANS, tab: SANS, note: SANS, docTitle: DOC_FONT, docBody: DOC_FONT, docFoot: SANS },
-  colors: { title: 0x2b2b2b, badge: 0x8a6d3b, note: 0x2b2b2b, docTitle: 0x161616, docBody: 0x2e2e2e, docFoot: 0x8a8478 },
+  fonts: LOOK.fonts,
+  colors: LOOK.colors,
   tabText: () => 0xffffff,
   /** The note editor's look over a note of this colour. */
   noteEditor: color => ({ paper: color, ink: "#2b2b2b", font: SANS }),
@@ -101,7 +100,7 @@ export default {
     obj.shadow
       .beginFill(0x000000, 0.18).drawRect(left + 3, top + 5, fw + 2, fh + 3).endFill()
       .beginFill(0x000000, 0.18).drawRect(left + 6, top + 9, fw, fh).endFill();
-    obj.frame.beginFill(PAPER).lineStyle(1, 0xd8d0bf, 1).drawRect(left, top, fw, fh).endFill();
+    obj.frame.beginFill(PAPER).lineStyle(1, LOOK.paperEdge, 1).drawRect(left, top, fw, fh).endFill();
     placePhoto(obj, w, h);
     placeTitle(obj, L);
   },
@@ -117,7 +116,7 @@ export default {
       .beginFill(0x000000, 0.14).drawRect(left + 6, top + 9, fw, fh).endFill();
     const count = Math.max(1, isPdfDocument(obj.card) ? obj.pdfPages : obj.card.docPages.length);
     // The sheets underneath (up to two drawn), each turned a little around the centre.
-    const under = [[2.4, w * 0.02, h * 0.012, 0xf1eee4], [-1.8, -w * 0.015, h * 0.02, 0xe9e5d9]];
+    const under = [[2.4, w * 0.02, h * 0.012, LOOK.under[0]], [-1.8, -w * 0.015, h * 0.02, LOOK.under[1]]];
     for ( let i = Math.min(count - 1, under.length) - 1; i >= 0; i-- ) {
       const [deg, dx, dy, tint] = under[i];
       obj.frame.lineStyle(1, DOC_EDGE, 1).beginFill(tint).drawPolygon(turnedSheet(L, deg, dx, dy)).endFill();

@@ -1,0 +1,1710 @@
+/* ============================================================ */
+/*  Evidence Journal: an open case-file notebook                */
+/*  (templates/evidence-journal.hbs, templates/journal-card.hbs) */
+/* ============================================================ */
+
+.dimancer-board-journal {
+  --mb-leather: #2b201a;
+  --mb-paper: #f6efdf;
+  --mb-paper-shade: #e9dec6;
+  --mb-ink: #2a241e;
+  --mb-ink-soft: #75695a;
+  --mb-rule: #d8caa9;
+  --mb-accent: #a8432c;
+  --mb-link: #8a3a24;
+  --mb-read: Georgia, "Times New Roman", serif;
+  --mb-display: "Modesto Condensed", Georgia, serif;
+  --mb-ui: Signika, sans-serif;
+}
+
+.dimancer-board-journal .window-content {
+  padding: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgb(255 220 180 / 7%), transparent 60%),
+    linear-gradient(#33261e, var(--mb-leather));
+}
+
+.dimancer-board-journal .mb-book {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--mb-ink);
+  font-family: var(--mb-ui);
+}
+
+/* The quest-board style warms the paper; the cyberpunk one turns the book into a dark terminal. */
+.dimancer-board-journal .mb-book[data-style="parchment"] {
+  --mb-paper: #f1e4c6;
+  --mb-paper-shade: #e2d0a8;
+  --mb-rule: #cdb78a;
+  --mb-ink: #2e2012;
+  --mb-ink-soft: #7a6244;
+}
+
+.dimancer-board-journal .mb-book[data-style="holo"] {
+  --mb-paper: #0d1823;
+  --mb-paper-shade: #08111a;
+  --mb-rule: #1f3a4d;
+  --mb-ink: #d4e7f2;
+  --mb-ink-soft: #7fa3b8;
+  --mb-accent: #00b8d4;
+  --mb-link: #5fdcff;
+  --mb-display: "Bruno Ace", Signika, sans-serif;
+}
+
+.dimancer-board-journal button:focus-visible,
+.dimancer-board-journal a:focus-visible,
+.dimancer-board-journal .mb-cell:focus-visible {
+  outline: 2px solid var(--mb-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------- */
+/*  The bar over the book                   */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-book-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  color: #f3e9d6;
+}
+
+.dimancer-board-journal .mb-bar-spacer {
+  flex: 1;
+}
+
+.dimancer-board-journal .mb-bar-button,
+.dimancer-board-journal .mb-bar-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  height: 30px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 13px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 15px;
+  background: rgb(255 255 255 / 7%);
+  color: inherit;
+  font-family: var(--mb-ui);
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-bar-icon {
+  width: 30px;
+  padding: 0;
+}
+
+.dimancer-board-journal .mb-bar-button:hover:not(:disabled),
+.dimancer-board-journal .mb-bar-icon:hover:not(:disabled) {
+  background: rgb(255 255 255 / 15%);
+  border-color: rgb(255 255 255 / 25%);
+}
+
+.dimancer-board-journal :is(.mb-bar-button, .mb-bar-icon):disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.dimancer-board-journal .mb-bar-button.is-primary {
+  background: var(--mb-accent);
+  border-color: color-mix(in srgb, var(--mb-accent), white 18%);
+  color: #fff;
+}
+
+.dimancer-board-journal .mb-bar-button.is-primary:hover {
+  background: color-mix(in srgb, var(--mb-accent), white 10%);
+}
+
+.dimancer-board-journal .mb-bar-button.is-on {
+  border-color: #e3b26a;
+  color: #ffd99a;
+}
+
+.dimancer-board-journal .mb-search {
+  position: relative;
+  flex: 0 1 360px;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+}
+
+.dimancer-board-journal .mb-search > i {
+  position: absolute;
+  left: 12px;
+  font-size: 12px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.dimancer-board-journal .mb-search input {
+  width: 100%;
+  height: 30px;
+  padding: 0 32px 0 32px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 15px;
+  background: rgb(0 0 0 / 28%);
+  color: #f3e9d6;
+  font-size: 13px;
+}
+
+.dimancer-board-journal .mb-search input::placeholder {
+  color: rgb(243 233 214 / 50%);
+}
+
+.dimancer-board-journal .mb-search input:focus {
+  border-color: #e3b26a;
+  box-shadow: none;
+  outline: none;
+}
+
+.dimancer-board-journal .mb-search .mb-bar-icon {
+  position: absolute;
+  right: 3px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+}
+
+.dimancer-board-journal .mb-turn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dimancer-board-journal .mb-turn-count {
+  min-width: 64px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+/* ---------------------------------------- */
+/*  The open book                           */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-spread {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.36fr) 1fr;
+  margin: 0 14px 18px;
+  border-radius: 3px;
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 55%, rgb(120 90 40 / 10%)),
+    var(--mb-paper);
+  /* Pages stacked under the open ones, and the book's shadow on the desk */
+  box-shadow:
+    0 2px 0 var(--mb-paper-shade),
+    0 4px 0 color-mix(in srgb, var(--mb-paper-shade), black 8%),
+    0 6px 0 var(--mb-paper-shade),
+    0 8px 0 color-mix(in srgb, var(--mb-paper-shade), black 14%),
+    0 16px 30px rgb(0 0 0 / 55%);
+}
+
+.dimancer-board-journal .mb-book.is-reading .mb-spread {
+  grid-template-columns: 1fr 1fr;
+}
+
+.dimancer-board-journal .mb-page {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The gutter: each page darkens towards the spine. */
+.dimancer-board-journal .mb-page-left {
+  box-shadow: inset -22px 0 26px -22px rgb(70 45 20 / 45%);
+}
+
+.dimancer-board-journal .mb-page-right {
+  box-shadow: inset 22px 0 26px -22px rgb(70 45 20 / 45%);
+}
+
+.dimancer-board-journal .mb-book[data-style="holo"] .mb-page-left {
+  box-shadow: inset -22px 0 26px -22px rgb(0 0 0 / 70%);
+}
+
+.dimancer-board-journal .mb-book[data-style="holo"] .mb-page-right {
+  box-shadow: inset 22px 0 26px -22px rgb(0 0 0 / 70%);
+}
+
+.dimancer-board-journal .mb-empty {
+  margin: 0;
+  color: var(--mb-ink-soft);
+  font-family: var(--mb-read);
+  font-style: italic;
+}
+
+.dimancer-board-journal .mb-link {
+  display: inline;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 1px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--mb-link);
+  font: inherit;
+  line-height: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-link:hover {
+  text-decoration-style: solid;
+}
+
+.dimancer-board-journal .mb-link.current {
+  font-weight: bold;
+}
+
+/* ---------------------------------------- */
+/*  Contents: the table of contents         */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-toc {
+  padding: 24px 22px 14px 28px;
+}
+
+.dimancer-board-journal .mb-page-title {
+  flex: none;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 3px double var(--mb-rule);
+  color: var(--mb-ink);
+  font-family: var(--mb-display);
+  font-size: 30px;
+  font-weight: normal;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.dimancer-board-journal .mb-modes {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.dimancer-board-journal .mb-modes button {
+  flex: none;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 3px 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--mb-ink-soft);
+  font-family: var(--mb-ui);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-modes button:hover {
+  color: var(--mb-ink);
+}
+
+.dimancer-board-journal .mb-modes button.active {
+  border-bottom-color: var(--mb-accent);
+  color: var(--mb-ink);
+}
+
+.dimancer-board-journal .mb-toc-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.dimancer-board-journal .mb-toc-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0;
+  padding: 4px 4px 4px calc(var(--depth, 0) * 16px);
+  border-radius: 4px;
+  font-family: var(--mb-read);
+  font-size: 15px;
+}
+
+.dimancer-board-journal .mb-toc-entry[hidden] {
+  display: none;
+}
+
+.dimancer-board-journal .mb-toc-caret {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--mb-ink-soft);
+  font-size: 9px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-toc-caret i {
+  transition: transform 0.15s;
+}
+
+.dimancer-board-journal .collapsed > .mb-toc-caret i,
+.dimancer-board-journal .mb-section.collapsed .mb-section-title .mb-toc-caret i {
+  transform: rotate(-90deg);
+}
+
+.dimancer-board-journal .mb-toc-name {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  color: var(--mb-ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-toc-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dimancer-board-journal .mb-toc-name i {
+  flex: none;
+  font-size: 12px;
+  color: var(--group-color, var(--mb-ink-soft));
+}
+
+.dimancer-board-journal .mb-toc-name:hover span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dimancer-board-journal .mb-toc-entry.current .mb-toc-name {
+  color: var(--mb-accent);
+}
+
+.dimancer-board-journal .mb-toc-entry.no-match {
+  opacity: 0.4;
+}
+
+/* Dotted leaders, as in a printed table of contents */
+.dimancer-board-journal .mb-toc-leader {
+  flex: 1;
+  min-width: 10px;
+  margin: 0 3px;
+  border-bottom: 1px dotted color-mix(in srgb, var(--mb-ink-soft), transparent 30%);
+  transform: translateY(-4px);
+}
+
+.dimancer-board-journal .mb-toc-count {
+  flex: none;
+  color: var(--mb-ink-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dimancer-board-journal .mb-toc-menu {
+  flex: none;
+  width: 20px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: var(--mb-ink-soft);
+  font-size: 12px;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-toc-entry:hover .mb-toc-menu,
+.dimancer-board-journal .mb-toc-menu:focus-visible {
+  opacity: 1;
+}
+
+.dimancer-board-journal .mb-toc-tools {
+  flex: none;
+  padding-top: 8px;
+  border-top: 1px solid var(--mb-rule);
+  font-size: 13px;
+}
+
+.dimancer-board-journal .mb-page-foot {
+  flex: none;
+  margin-top: 8px;
+  color: var(--mb-ink-soft);
+  font-family: var(--mb-read);
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Filing: a chapter you can drop on */
+.dimancer-board-journal .drop-target {
+  background: color-mix(in srgb, var(--mb-accent), transparent 88%);
+  outline: 1px dashed var(--mb-accent);
+  outline-offset: -1px;
+}
+
+.dimancer-board-journal .dragging {
+  opacity: 0.4;
+}
+
+/* ---------------------------------------- */
+/*  Contents: the contact sheet             */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-sheet {
+  overflow: auto;
+  padding: 24px 30px 36px 34px;
+}
+
+.dimancer-board-journal .mb-section {
+  margin: 0 0 26px;
+  scroll-margin-top: 8px;
+}
+
+.dimancer-board-journal .mb-section[hidden] {
+  display: none;
+}
+
+.dimancer-board-journal .mb-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 0 0 4px calc(var(--depth, 0) * 14px);
+  border-bottom: 1px solid var(--mb-rule);
+  color: var(--mb-ink);
+  font-family: var(--mb-display);
+  font-size: 22px;
+  font-weight: normal;
+  line-height: 1.2;
+}
+
+.dimancer-board-journal .mb-section-title > i {
+  font-size: 14px;
+  color: var(--group-color, var(--mb-ink-soft));
+}
+
+.dimancer-board-journal .mb-section-title small {
+  color: var(--mb-ink-soft);
+  font-family: var(--mb-ui);
+  font-size: 12px;
+}
+
+.dimancer-board-journal .mb-section.collapsed :is(.mb-cards, .mb-section-empty) {
+  display: none;
+}
+
+.dimancer-board-journal .mb-section-empty {
+  margin: -6px 0 0;
+  color: var(--mb-ink-soft);
+  font-family: var(--mb-read);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.dimancer-board-journal .mb-sheet-empty {
+  margin: 18% auto 0;
+  max-width: 34ch;
+  color: var(--mb-ink-soft);
+  font-family: var(--mb-read);
+  font-size: 16px;
+  font-style: italic;
+  text-align: center;
+}
+
+.dimancer-board-journal .mb-sheet-empty[hidden] {
+  display: none;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 30px 24px;
+  align-items: start;
+  margin: 0;
+  padding: 6px 6px 0;
+  list-style: none;
+}
+
+.dimancer-board-journal .mb-cell {
+  position: relative;
+  padding-bottom: 14px;
+  cursor: pointer;
+}
+
+.dimancer-board-journal .mb-cell[hidden] {
+  display: none;
+}
+
+.dimancer-board-journal .mb-cell-marks {
+  position: absolute;
+  right: 2px;
+  bottom: -4px;
+  display: flex;
+  gap: 8px;
+  color: var(--mb-ink-soft);
+  font-size: 11px;
+}
+
+/* ---------------------------------------- */
+/*  Cards: shared by every style            */
+/* ---------------------------------------- */
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card {
+  --tilt: 0deg;
+  position: relative;
+  margin: 0;
+  transform: rotate(var(--tilt));
+  transform-origin: 50% 30%;
+  transition: transform 0.15s ease;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 22%)) drop-shadow(0 7px 8px rgb(0 0 0 / 14%));
+}
+
+.dimancer-board-journal .mb-cell:hover .mb-card {
+  transform: rotate(0deg) translateY(-3px) scale(1.03);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-hidden .mb-card-face {
+  opacity: 0.55;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-paper {
+  position: relative;
+  z-index: 1;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-face {
+  position: relative;
+}
+
+/* A photo: the picture, square in the contact sheet, and the title strip under it */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-picture {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: #8c8c8c;
+  color: #d6d6d6;
+  font-size: 28px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: cover;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-title {
+  overflow: hidden;
+  padding: 7px 2px 9px;
+  color: var(--mb-card-title);
+  font-family: var(--mb-card-font-title);
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-untitled .mb-card-title {
+  font-style: italic;
+  opacity: 0.55;
+}
+
+/* A document: A4, its title and the start of its first page */
+:is(.dimancer-board-journal, .mb-style-picker) :is(.mb-card-document, .mb-card-pdf):not(.mb-card-large) .mb-card-paper {
+  aspect-ratio: 1 / 1.414;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) :is(.mb-card-document, .mb-card-pdf) .mb-card-face {
+  height: 100%;
+  overflow: hidden;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-doc {
+  padding: 11% 10%;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-doc-title {
+  margin: 0 0 7px;
+  padding: 0;
+  border: none;
+  color: var(--mb-card-doc-title);
+  font-family: var(--mb-card-font-doc-title);
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-doc-body {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--mb-card-doc-body);
+  font-family: var(--mb-card-font-doc-body);
+  font-size: 8px;
+  line-height: 1.4;
+  -webkit-line-clamp: 13;
+  -webkit-box-orient: vertical;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-doc-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  color: var(--mb-card-doc-foot);
+  font-family: var(--mb-card-font-foot);
+  font-size: 9px;
+  text-align: center;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-doc-icon {
+  position: absolute;
+  right: 9%;
+  bottom: 7%;
+  color: #b3261e;
+  font-size: 22px;
+  opacity: 0.75;
+}
+
+/* A PDF's own first page is its paper, once drawn */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-pdf-page {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: contain;
+  background: #fff;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.has-preview .mb-card-doc {
+  display: none;
+}
+
+/* The sheets underneath a stack of pages */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-under {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* The category: a tab sticking out above the top-right corner */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-tab {
+  position: absolute;
+  z-index: 0;
+  top: -11px;
+  right: 10%;
+  display: grid;
+  place-items: start center;
+  width: 26px;
+  height: 22px;
+  padding-top: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--swatch);
+  color: #fff;
+  font-size: 9px;
+}
+
+/* ---------------------------------------- */
+/*  Cards: classic (polaroids and paper)    */
+/* ---------------------------------------- */
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-paper {
+  background: var(--mb-card-paper);
+  border: 1px solid var(--mb-card-edge);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic.mb-card-photo .mb-card-face {
+  padding: 6% 6% 0;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic:is(.mb-card-document, .mb-card-pdf) .mb-card-paper {
+  background: var(--mb-card-doc);
+  border-color: var(--mb-card-doc-edge);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-under {
+  border: 1px solid var(--mb-card-doc-edge);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-under-1 {
+  background: var(--mb-card-under-1);
+  transform: rotate(2.4deg) translate(2%, 1.2%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-under-2 {
+  background: var(--mb-card-under-2);
+  transform: rotate(-1.8deg) translate(-1.5%, 2%);
+}
+
+/* The paper clip over the top-left corner */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-clip {
+  position: absolute;
+  z-index: 2;
+  left: 16%;
+  top: -4%;
+  width: max(8px, 7.5%);
+  height: max(18px, 13%);
+  border: 2px solid #9ea3a8;
+  border-radius: 999px;
+  filter: drop-shadow(1px 1px 0 rgb(0 0 0 / 25%));
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-clip::after {
+  content: "";
+  position: absolute;
+  inset: 16% 18% 22%;
+  border: 2px solid #9ea3a8;
+  border-radius: 999px;
+}
+
+/* ---------------------------------------- */
+/*  Cards: parchment (quest board)          */
+/* ---------------------------------------- */
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment :is(.mb-card-paper, .mb-card-under) {
+  clip-path: var(--clip);
+  background: var(--mb-parchment, var(--mb-card-paper));
+  background-size: 300px;
+  box-shadow: inset 0 0 14px rgb(122 84 38 / 50%), inset 0 0 3px rgb(74 46 18 / 60%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment.mb-card-photo .mb-card-face {
+  padding: 8% 8% 0;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-picture {
+  outline: 1px solid rgb(74 52 24 / 45%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment :is(.mb-card-picture, .mb-card-photo-stage)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mb-card-photo-tint);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-title {
+  font-size: 16px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-under-1 {
+  filter: brightness(0.95);
+  transform: rotate(2.4deg) translate(2%, 1.2%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-under-2 {
+  filter: brightness(0.88);
+  transform: rotate(-1.8deg) translate(-1.5%, 2%);
+}
+
+/* A stack of pages is sealed with wax at the bottom-left corner */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-clip {
+  position: absolute;
+  z-index: 2;
+  left: 5%;
+  bottom: 5%;
+  width: 15%;
+  max-width: 34px;
+  aspect-ratio: 1;
+  border-radius: 46% 54% 50% 50%;
+  background: radial-gradient(circle at 35% 32%, color-mix(in srgb, var(--seal), white 28%), var(--seal) 50%, color-mix(in srgb, var(--seal), black 38%));
+  filter: drop-shadow(1px 2px 1px rgb(0 0 0 / 35%));
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-clip::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border: 2px solid color-mix(in srgb, var(--seal), black 38%);
+  border-radius: 50%;
+}
+
+/* The category is a ribbon with a forked end */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-tab {
+  height: 28px;
+  border-radius: 0;
+  color: #fff4dc;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+}
+
+/* ---------------------------------------- */
+/*  Cards: holo (cyberpunk)                 */
+/* ---------------------------------------- */
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo {
+  --cut: 9px;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent), transparent 55%)) drop-shadow(0 6px 8px rgb(0 0 0 / 40%));
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo :is(.mb-card-paper, .mb-card-under) {
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  padding: 1.5px;
+  background: var(--accent);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-face {
+  height: 100%;
+  clip-path: polygon(calc(var(--cut) - 1px) 0, 100% 0, 100% calc(100% - var(--cut) + 1px), calc(100% - var(--cut) + 1px) 100%, 0 100%, 0 calc(var(--cut) - 1px));
+  background: color-mix(in srgb, var(--mb-card-paper), transparent 6%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo.mb-card-photo .mb-card-face {
+  padding: 7% 7% 0;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo:is(.mb-card-document, .mb-card-pdf) .mb-card-face {
+  background: var(--mb-card-doc);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo :is(.mb-card-picture, .mb-card-photo-stage)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(to bottom, rgb(0 0 0 / 30%) 0 1px, transparent 1px 3px),
+    var(--mb-card-photo-tint);
+  background-blend-mode: normal, normal;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-title {
+  border-top: 1px solid color-mix(in srgb, var(--accent), transparent 65%);
+  margin-top: 6%;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* A document is a terminal window: a title bar with three lights */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-doc {
+  padding: 0 9% 10%;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-doc-title {
+  margin: 0 -11% 9%;
+  padding: 10% 22% 6% 11%;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent), transparent 50%);
+  background:
+    radial-gradient(circle at calc(100% - 9px) 50%, var(--accent) 2px, transparent 2.5px),
+    radial-gradient(circle at calc(100% - 17px) 50%, color-mix(in srgb, var(--accent), transparent 30%) 2px, transparent 2.5px),
+    radial-gradient(circle at calc(100% - 25px) 50%, color-mix(in srgb, var(--accent), transparent 55%) 2px, transparent 2.5px),
+    color-mix(in srgb, var(--accent), transparent 86%);
+  font-size: 10px;
+  font-weight: normal;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-under {
+  opacity: 0.45;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-under-1 {
+  transform: translate(3%, 2%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-under-2 {
+  transform: translate(6%, 4%);
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-clip {
+  display: none;
+}
+
+/* The category is a lit chip */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-tab {
+  border: 1px solid var(--swatch);
+  border-bottom: none;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--swatch), #07101a 75%);
+  color: color-mix(in srgb, var(--swatch), white 45%);
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+}
+
+/* ---------------------------------------- */
+/*  Reading: the evidence, large            */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-exhibit {
+  container-type: size;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 26px 30px 20px 28px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large {
+  transform: none;
+  transition: none;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-photo,
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-pdf {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-photo .mb-card-paper,
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-pdf .mb-card-paper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-photo .mb-card-face,
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-pdf .mb-card-face {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.is-classic.mb-card-photo .mb-card-face {
+  padding: 3.5% 3.5% 0;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-pdf .mb-card-face {
+  padding: 0;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-photo-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large .mb-card-title {
+  padding: 10px 6px 14px;
+  font-size: 20px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.is-parchment .mb-card-title {
+  font-size: 24px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.is-holo .mb-card-title {
+  font-size: 14px;
+}
+
+/* A text document: one A4 sheet, as large as the page allows, written in place */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-document {
+  flex: none;
+  width: min(100cqw - 58px, (100cqh - 100px) / 1.414);
+  aspect-ratio: 1 / 1.414;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-large.mb-card-document .mb-card-paper {
+  height: 100%;
+}
+
+.dimancer-board-journal .mb-doc-sheet {
+  display: flex;
+  flex-direction: column;
+  padding: 9% 9% 7%;
+  overflow: auto;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-doc-sheet {
+  padding: 0 7% 6%;
+}
+
+.dimancer-board-journal .mb-doc-sheet .mb-card-doc-title {
+  flex: none;
+  margin-bottom: 0.8em;
+  font-size: 20px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-doc-sheet .mb-card-doc-title {
+  margin: 0 -8% 6%;
+  padding: 5% 22% 3% 8%;
+  font-size: 14px;
+}
+
+.dimancer-board-journal .mb-doc-sheet .mb-prose {
+  --mb-prose-ink: var(--mb-card-doc-body);
+  flex: 1;
+  font-family: var(--mb-card-font-doc-body);
+  font-size: 15px;
+  max-width: none;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-doc-sheet .mb-prose {
+  font-size: 17px;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-doc-sheet .mb-prose {
+  font-size: 14px;
+}
+
+.dimancer-board-journal .mb-doc-pager,
+.dimancer-board-journal .mb-read-pdf {
+  flex: none;
+}
+
+.dimancer-board-journal .mb-doc-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mb-ink-soft);
+}
+
+.dimancer-board-journal .mb-exhibit :is(.mb-bar-icon, .mb-read-pdf) {
+  border-color: var(--mb-rule);
+  background: transparent;
+  color: var(--mb-ink);
+}
+
+.dimancer-board-journal .mb-exhibit .mb-bar-icon:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mb-ink), transparent 92%);
+  border-color: var(--mb-ink-soft);
+}
+
+.dimancer-board-journal .mb-doc-count {
+  min-width: 96px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.dimancer-board-journal .mb-read-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid;
+  border-radius: 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* The zoomable picture's frame colour per style (the stage itself is in dimancer-board.css) */
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-classic .mb-card-photo-stage {
+  background: #3b3b3b;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-parchment .mb-card-photo-stage {
+  background: #4a3a26;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card.is-holo .mb-card-photo-stage {
+  background: #050b12;
+}
+
+:is(.dimancer-board-journal, .mb-style-picker) .mb-card-pdf .mb-card-photo-stage {
+  background: color-mix(in srgb, var(--mb-paper), black 12%);
+}
+
+/* ---------------------------------------- */
+/*  Reading: title, notes and where it is   */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-reading {
+  padding: 34px 40px 16px 44px;
+}
+
+.dimancer-board-journal .mb-reading-head {
+  flex: none;
+}
+
+.dimancer-board-journal .mb-reading-title {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0 0 2px;
+  overflow: hidden;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--mb-ink);
+  font-family: var(--mb-display);
+  font-size: 34px;
+  font-weight: normal;
+  line-height: 1.15;
+  resize: none;
+  outline: none;
+}
+
+.dimancer-board-journal textarea.mb-reading-title:hover {
+  border-bottom-color: var(--mb-rule);
+}
+
+.dimancer-board-journal textarea.mb-reading-title:focus {
+  border-bottom-color: var(--mb-ink-soft);
+}
+
+.dimancer-board-journal .mb-reading-title.untitled {
+  color: var(--mb-ink-soft);
+  font-style: italic;
+}
+
+.dimancer-board-journal .mb-reading-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--mb-rule);
+}
+
+.dimancer-board-journal .mb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: 26px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--swatch, var(--mb-ink-soft)), transparent 30%);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--swatch, transparent), transparent 85%);
+  box-shadow: none;
+  color: var(--mb-ink);
+  font-family: var(--mb-ui);
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+button.mb-chip {
+  cursor: pointer;
+}
+
+.dimancer-board-journal button.mb-chip:hover {
+  background: color-mix(in srgb, var(--swatch, var(--mb-ink-soft)), transparent 75%);
+}
+
+.dimancer-board-journal .mb-chip i {
+  color: var(--swatch, var(--mb-ink-soft));
+}
+
+.dimancer-board-journal .mb-chip.is-empty {
+  border-style: dashed;
+  color: var(--mb-ink-soft);
+}
+
+.dimancer-board-journal .mb-access.is-hidden {
+  --swatch: #b0392a;
+}
+
+.dimancer-board-journal .mb-reading-notes {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 8px;
+}
+
+.dimancer-board-journal .mb-reading-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--mb-rule);
+  color: var(--mb-ink-soft);
+  font-size: 12.5px;
+}
+
+.dimancer-board-journal .mb-reading-foot p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.dimancer-board-journal .mb-reading-foot .fa-thumbtack {
+  font-size: 11px;
+}
+
+.dimancer-board-journal .mb-save-state {
+  margin-left: auto;
+  font-style: italic;
+}
+
+.dimancer-board-journal .mb-book:has(prose-mirror[data-save-state="pending"]) .mb-save-state::after {
+  content: attr(data-saving);
+}
+
+.dimancer-board-journal .mb-book:has(prose-mirror[data-save-state="saved"]):not(:has(prose-mirror[data-save-state="pending"])) .mb-save-state::after {
+  content: "✓ " attr(data-saved);
+}
+
+/* ---------------------------------------- */
+/*  Typeset text (notes and documents)      */
+/* ---------------------------------------- */
+
+.dimancer-board-journal .mb-prose {
+  --mb-prose-ink: var(--mb-ink);
+  display: block;
+  max-width: 66ch;
+  color: var(--mb-prose-ink);
+  font-family: var(--mb-read);
+  font-size: 16.5px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+/* Foundry's dark theme gives some elements (dd, dt, td…) a light text colour; on paper the text
+   takes the page's ink. Inline colours (the editor's colour mark) still win. */
+.dimancer-board-journal .mb-prose :is(p, li, dl, dt, dd, td, th, caption, figcaption, em, strong, span, small, cite, u, s) {
+  color: inherit;
+}
+
+.dimancer-board-journal .mb-prose :is(p, ul, ol, dl, blockquote, pre, table, section.secret) {
+  margin: 0 0 0.85em;
+}
+
+.dimancer-board-journal .mb-prose dd {
+  margin-left: 0;
+}
+
+.dimancer-board-journal .mb-prose :is(h1, h2, h3, h4) {
+  margin: 1.1em 0 0.45em;
+  padding: 0;
+  border: none;
+  color: var(--mb-prose-ink);
+  font-family: inherit;
+  font-weight: bold;
+  line-height: 1.25;
+}
+
+.dimancer-board-journal .mb-prose h1 { font-size: 1.5em; }
+.dimancer-board-journal .mb-prose h2 { font-size: 1.3em; }
+.dimancer-board-journal .mb-prose h3 { font-size: 1.12em; }
+.dimancer-board-journal .mb-prose h4 { font-size: 1em; }
+
+.dimancer-board-journal .mb-prose :is(h1, h2, h3, h4):first-child {
+  margin-top: 0;
+}
+
+.dimancer-board-journal .mb-prose :is(ul, ol) {
+  padding-left: 1.4em;
+}
+
+.dimancer-board-journal .mb-prose li {
+  margin: 0.2em 0;
+}
+
+.dimancer-board-journal .mb-prose li > p {
+  margin: 0;
+}
+
+.dimancer-board-journal .mb-prose blockquote {
+  margin-left: 0;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid var(--mb-rule);
+  background: none;
+  color: color-mix(in srgb, var(--mb-prose-ink), transparent 25%);
+  font-style: italic;
+}
+
+.dimancer-board-journal .mb-prose hr {
+  margin: 1.2em 0;
+  border: none;
+  border-top: 1px solid var(--mb-rule);
+}
+
+.dimancer-board-journal .mb-prose :is(code, pre) {
+  font-family: "Courier New", monospace;
+  font-size: 0.9em;
+}
+
+.dimancer-board-journal .mb-prose pre {
+  padding: 0.6em 0.8em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--mb-prose-ink), transparent 93%);
+  white-space: pre-wrap;
+}
+
+.dimancer-board-journal .mb-prose section.secret {
+  padding: 0.5em 0.8em;
+  border-left: 3px solid var(--mb-accent);
+  background: color-mix(in srgb, var(--mb-accent), transparent 92%);
+}
+
+.dimancer-board-journal .mb-prose a:not(.content-link) {
+  color: var(--mb-link);
+}
+
+.dimancer-board-journal .mb-prose img {
+  max-width: 100%;
+  border: none;
+}
+
+/* Foundry's editor element, without its frame: the text is the page */
+.dimancer-board-journal prose-mirror.mb-prose {
+  height: auto;
+  min-height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.dimancer-board-journal prose-mirror.mb-prose .editor-content {
+  height: auto;
+  min-height: 100%;
+  padding: 0;
+  overflow: visible;
+}
+
+.dimancer-board-journal prose-mirror.mb-prose .ProseMirror {
+  position: relative;
+  min-height: 8em;
+  outline: none;
+  white-space: pre-wrap;
+}
+
+.dimancer-board-journal .mb-doc-sheet prose-mirror.mb-prose .ProseMirror {
+  min-height: 100%;
+}
+
+.dimancer-board-journal prose-mirror.mb-prose .ProseMirror.mb-empty-doc::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  color: color-mix(in srgb, var(--mb-prose-ink), transparent 55%);
+  font-style: italic;
+  pointer-events: none;
+}
+
+/* ---------------------------------------- */
+/*  Narrow windows: one page at a time      */
+/* ---------------------------------------- */
+
+@container (max-width: 760px) {
+  .dimancer-board-journal .mb-spread,
+  .dimancer-board-journal .mb-book.is-reading .mb-spread {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .dimancer-board-journal .mb-book.is-contents .mb-toc {
+    max-height: 34cqh;
+    padding: 16px 20px 8px;
+  }
+
+  .dimancer-board-journal .mb-book.is-reading .mb-exhibit {
+    height: 42cqh;
+  }
+
+  .dimancer-board-journal .mb-page-left,
+  .dimancer-board-journal .mb-page-right {
+    box-shadow: none;
+  }
+
+  .dimancer-board-journal .mb-page-left {
+    border-bottom: 1px solid var(--mb-rule);
+  }
+
+  .dimancer-board-journal .mb-bar-button span {
+    display: none;
+  }
+
+  .dimancer-board-journal .mb-reading {
+    padding: 22px 24px 12px;
+  }
+}
+
+/* ============================================================ */
+/*  The journal editor's floating toolbar and "/" menu          */
+/*  (scripts/journal-editor.mjs; they live on <body>)            */
+/* ============================================================ */
+
+.mb-editor-toolbar,
+.mb-editor-slash {
+  position: fixed;
+  z-index: 10000;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 8px;
+  background: #1f1b18;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  color: #eee6da;
+  font-family: Signika, sans-serif;
+}
+
+.mb-editor-toolbar[hidden],
+.mb-editor-slash[hidden] {
+  display: none;
+}
+
+.mb-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 4px;
+}
+
+.mb-editor-toolbar button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mb-editor-toolbar button:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.mb-editor-toolbar button.active {
+  background: #a8432c;
+  color: #fff;
+}
+
+.mb-editor-toolbar .mb-editor-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: rgb(255 255 255 / 18%);
+}
+
+.mb-editor-slash {
+  width: 230px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.mb-editor-slash-hint {
+  margin: 4px 8px 6px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.mb-editor-slash button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mb-editor-slash button i {
+  width: 18px;
+  opacity: 0.7;
+}
+
+.mb-editor-slash button.active,
+.mb-editor-slash button:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+/* ============================================================ */
+/*  New Journal dialog (templates/create-journal.hbs)            */
+/* ============================================================ */
+
+.dimancer-board-new-journal .mb-new-journal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dimancer-board-new-journal fieldset {
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.dimancer-board-new-journal .mb-style-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.dimancer-board-new-journal .mb-style-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.dimancer-board-new-journal .mb-style-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dimancer-board-new-journal .mb-style-swatch {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1.05;
+  padding: 0.9rem 1.4rem;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #f6efdf;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.dimancer-board-new-journal .mb-style-swatch[data-style="parchment"] { background: #f1e4c6; }
+.dimancer-board-new-journal .mb-style-swatch[data-style="holo"] { background: #0d1823; }
+
+.dimancer-board-new-journal .mb-style-swatch .mb-card {
+  width: 100%;
+  pointer-events: none;
+}
+
+.dimancer-board-new-journal .mb-style-option:hover .mb-style-swatch {
+  border-color: color-mix(in srgb, var(--color-border-highlight, #ff6400), transparent 55%);
+}
+
+.dimancer-board-new-journal .mb-style-option input:checked + .mb-style-swatch {
+  border-color: var(--color-border-highlight, #ff6400);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-border-highlight, #ff6400), transparent 75%);
+}
+
+.dimancer-board-new-journal .mb-style-option input:focus-visible + .mb-style-swatch {
+  outline: 2px solid var(--color-border-highlight, #ff6400);
+  outline-offset: 2px;
+}
+
+.dimancer-board-new-journal .mb-style-name {
+  font-weight: 600;
+}
+
+.dimancer-board-new-journal .mb-style-option input:checked ~ .mb-style-name {
+  color: var(--color-text-emphatic, inherit);
+}
+
+.dimancer-board-new-journal .mb-access {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.dimancer-board-new-journal :is(.mb-access-option, .mb-make-default) {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.dimancer-board-new-journal .mb-access-option > i {
+  width: 1.2rem;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.dimancer-board-new-journal :is(.mb-access-option, .mb-make-default) span {
+  display: flex;
+  flex-direction: column;
+}
+
+.dimancer-board-new-journal :is(.mb-access-option, .mb-make-default) small {
+  opacity: 0.7;
+}
+
+/* The journal switcher in the book's bar, and the default-journal line at the foot of the contents. */
+.dimancer-board-journal .mb-journal-switch {
+  max-width: 14rem;
+}
+
+.dimancer-board-journal .mb-journal-switch span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dimancer-board-journal .mb-journal-switch .is-default {
+  color: #e8b64c;
+}
+
+.dimancer-board-journal .mb-default-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--mb-ink-soft);
+}
+
+.dimancer-board-journal .mb-default-note .fa-star {
+  color: #c99a2e;
+}

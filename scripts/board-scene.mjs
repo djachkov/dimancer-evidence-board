@@ -4,7 +4,9 @@ import { DEFAULT_SURFACE, defaultFrameColor, getSurface, surfaceFlag, validColor
 import { boardStyle, registerSurfaceHooks, surfaceChoices, surfaceOf } from "./surfaces.mjs";
 import { bindStyleFields, styleFieldsData } from "./style-fields.mjs";
 import { promptNewBoard, registerCreateDefaults, setPlaceholderColor } from "./create-board-dialog.mjs";
-import { getEvidenceJournal, openEvidenceJournal } from "./journal-store.mjs";
+import {
+  canEditJournal, defaultJournal, getEvidenceJournal, isEvidenceJournal, openEvidenceJournal, setDefaultJournal
+} from "./journal-store.mjs";
 
 const OWNER = () => CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
 
@@ -147,18 +149,46 @@ function onRenderSceneDirectory(app, element) {
   actions.append(button);
 }
 
-/** An "Evidence Journal" button in the Journal sidebar: opens it (a GM creates it on first use). */
+/**
+ * An "Evidence Journal" button in the Journal sidebar: opens this user's default evidence journal
+ * (offering to create one when there's none), and evidence journals show which one is the default.
+ */
 function onRenderJournalDirectory(app, element) {
-  const entry = getEvidenceJournal();
-  if ( !game.user.isGM && !entry?.visible ) return;
   const actions = element.querySelector(".header-actions");
-  if ( !actions || actions.querySelector(".dimancer-board-journal-open") ) return;
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "dimancer-board-journal-open";
-  button.innerHTML = `<i class="fa-solid fa-magnifying-glass" inert></i><span>${t(entry ? "Journal.Open" : "Journal.Create")}</span>`;
-  button.addEventListener("click", () => openEvidenceJournal());
-  actions.append(button);
+  if ( actions && !actions.querySelector(".dimancer-board-journal-open") ) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "dimancer-board-journal-open";
+    button.innerHTML = `<i class="fa-solid fa-magnifying-glass" inert></i><span>${t(getEvidenceJournal() ? "Journal.Open" : "Journal.Create")}</span>`;
+    button.addEventListener("click", () => openEvidenceJournal());
+    actions.append(button);
+  }
+  const mine = defaultJournal()?.id;
+  for ( const li of element.querySelectorAll(".directory-item.entry[data-entry-id]") ) {
+    const entry = game.journal.get(li.dataset.entryId);
+    if ( !isEvidenceJournal(entry) ) continue;
+    li.classList.add("dimancer-board-evidence-journal");
+    li.querySelector(".dimancer-board-default-mark")?.remove();
+    if ( entry.id !== mine ) continue;
+    const mark = document.createElement("i");
+    mark.className = "fa-solid fa-star dimancer-board-default-mark";
+    mark.dataset.tooltip = t("Journal.IsDefault");
+    li.querySelector(".entry-name, .document-name")?.append(mark);
+  }
+}
+
+/** "Make it my default" on evidence journals in the Journal sidebar's context menu. */
+function onGetJournalEntryContextOptions(app, entries) {
+  const entryOf = li => game.journal.get(li.dataset.entryId);
+  entries.push({
+    label: "DIMANCER_BOARD.Journal.MakeDefault",
+    icon: '<i class="fa-solid fa-star"></i>',
+    visible: li => {
+      const entry = entryOf(li);
+      return isEvidenceJournal(entry) && canEditJournal(entry) && (defaultJournal()?.id !== entry.id);
+    },
+    onClick: (event, li) => setDefaultJournal(entryOf(li))
+  });
 }
 
 function onGetSceneContextOptions(app, entries) {
@@ -216,6 +246,7 @@ export function registerSceneHooks() {
   registerSurfaceHooks();
   Hooks.on("renderSceneDirectory", onRenderSceneDirectory);
   Hooks.on("renderJournalDirectory", onRenderJournalDirectory);
+  Hooks.on("getJournalEntryContextOptions", onGetJournalEntryContextOptions);
   Hooks.on("getSceneContextOptions", onGetSceneContextOptions);
   Hooks.on("renderSceneConfig", onRenderSceneConfig);
   Hooks.on("updateScene", onUpdateScene);

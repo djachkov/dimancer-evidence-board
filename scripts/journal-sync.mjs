@@ -2,7 +2,9 @@ import { MODULE_ID } from "./constants.mjs";
 import { cardUpdate } from "./cards.mjs";
 import { canEditCard, getCard, isBoard } from "./permissions.mjs";
 import { cardPatchFromPage, pageItem, pagePatchFromCard } from "./journal-pages.mjs";
-import { boardPlacements, canEditPage, isEvidenceJournal, isEvidencePage, pageOfCard, setPageHidden } from "./journal-store.mjs";
+import {
+  boardPlacements, canEditPage, isEvidenceJournal, isEvidencePage, pageOfCard, refreshJournalViews, setPageHidden
+} from "./journal-store.mjs";
 
 /**
  * Keeps board cards and their Evidence Journal pages in step (POC).
@@ -92,6 +94,10 @@ export function registerJournalSync() {
   Hooks.on("updateJournalEntryPage", onUpdatePage);
   Hooks.on("deleteJournalEntryPage", onDeletePage);
   Hooks.on("createJournalEntryPage", page => isEvidencePage(page) && refreshSheets());
-  Hooks.on("updateJournalEntry", entry => isEvidenceJournal(entry) && refreshSheets());
+  Hooks.on("updateJournalEntry", entry => isEvidenceJournal(entry) && refreshJournalViews());
+  // Journals coming and going (or access to them changing) can change anyone's default journal.
+  Hooks.on("createJournalEntry", entry => isEvidenceJournal(entry) && refreshJournalViews());
+  Hooks.on("deleteJournalEntry", entry => isEvidenceJournal(entry) && refreshJournalViews());
+  Hooks.on("updateUser", (user, changed) => user.isSelf && foundry.utils.hasProperty(changed, `flags.${MODULE_ID}`) && refreshJournalViews());
   Hooks.on("deleteScene", refreshSheets);
 }

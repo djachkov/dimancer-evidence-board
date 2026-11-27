@@ -1,0 +1,41 @@
+<div class="mb-new-journal">
+  <div class="form-group">
+    <label for="mb-new-journal-name">{{localize "DIMANCER_BOARD.NewJournal.Name"}}</label>
+    <input type="text" id="mb-new-journal-name" name="name" value="{{name}}" maxlength="120" required autofocus>
+  </div>
+
+  <fieldset class="mb-style-picker">
+    <legend>{{localize "DIMANCER_BOARD.NewJournal.StyleLabel"}}</legend>
+    <div class="mb-style-options">
+      {{#each styles}}
+      <label class="mb-style-option" data-tooltip="{{hint}}">
+        <input type="radio" name="style" value="{{id}}"{{#if checked}} checked{{/if}}>
+        <span class="mb-style-swatch" data-style="{{id}}" style="{{vars}}">
+          {{> "modules/dimancer_board/templates/journal-card.hbs" card}}
+        </span>
+        <span class="mb-style-name">{{label}}</span>
+      </label>
+      {{/each}}
+    </div>
+    <p class="hint">{{localize "DIMANCER_BOARD.NewJournal.StyleFixed"}}</p>
+  </fieldset>
+
+  <fieldset class="mb-access">
+    <legend>{{localize "DIMANCER_BOARD.NewJournal.AccessLabel"}}</legend>
+    <label class="mb-access-option">
+      <input type="radio" name="access" value="shared" checked>
+      <i class="fa-solid fa-users" inert></i>
+      <span><strong>{{localize "DIMANCER_BOARD.NewJournal.Shared"}}</strong><small>{{localize "DIMANCER_BOARD.NewJournal.SharedHint"}}</small></span>
+    </label>
+    <label class="mb-access-option">
+      <input type="radio" name="access" value="private">
+      <i class="fa-solid fa-user-lock" inert></i>
+      <span><strong>{{localize "DIMANCER_BOARD.NewJournal.Private"}}</strong><small>{{#if gm}}{{localize "DIMANCER_BOARD.NewJournal.PrivateHintGM"}}{{else}}{{localize "DIMANCER_BOARD.NewJournal.PrivateHint"}}{{/if}}</small></span>
+    </label>
+  </fieldset>
+
+  <label class="mb-make-default">
+    <input type="checkbox" name="makeDefault"{{#if makeDefault}} checked{{/if}}>
+    <span>{{localize "DIMANCER_BOARD.NewJournal.MakeDefault"}}<small>{{localize "DIMANCER_BOARD.NewJournal.MakeDefaultHint"}}</small></span>
+  </label>
+</div>
