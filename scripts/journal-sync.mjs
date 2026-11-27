@@ -3,7 +3,8 @@ import { cardUpdate } from "./cards.mjs";
 import { canEditCard, getCard, isBoard } from "./permissions.mjs";
 import { cardPatchFromPage, pageItem, pagePatchFromCard } from "./journal-pages.mjs";
 import {
-  boardPlacements, canEditPage, isEvidenceJournal, isEvidencePage, pageOfCard, refreshJournalViews, setPageHidden
+  boardPlacements, canEditPage, isEvidenceJournal, isEvidencePage, pageOfCard, refreshJournalViews, setPageHidden,
+  unlinkCards, unlinkMissingPages
 } from "./journal-store.mjs";
 
 /**
@@ -75,18 +76,32 @@ async function onUpdatePage(page, changed, options, userId) {
   }
 }
 
-/** A page was deleted here: the cards that showed it become plain cards. */
+/**
+ * Who unlinks cards after a deletion: the active GM, who can change every board, or, with no GM
+ * online, the user who deleted it (as far as they can).
+ */
+function unlinksAfterDelete(userId) {
+  const gm = game.users.activeGM;
+  return gm ? gm.isSelf : (userId === game.user.id);
+}
+
+/** A page was deleted: the cards that showed it become plain cards. */
 async function onDeletePage(page, options, userId) {
   if ( !isEvidencePage(page) ) return;
   refreshSheets();
-  if ( userId !== game.user.id ) return;
-  for ( const p of boardPlacements().get(page.uuid) ?? [] ) {
-    const scene = game.scenes.get(p.sceneId);
-    const card = scene && getCard(scene, p.cardId);
-    if ( card && (game.user.isGM || canEditCard(scene, card)) ) {
-      await scene.update(cardUpdate(card.id, { page: null }), { dimancerMirror: true });
-    }
-  }
+  if ( unlinksAfterDelete(userId) ) await unlinkCards(uuid => uuid === page.uuid);
+}
+
+/**
+ * A journal was deleted: its pages go with it (without their own delete hooks), so the cards that
+ * showed any of them become plain cards that can be filed into another journal.
+ */
+async function onDeleteJournal(entry, options, userId) {
+  if ( !isEvidenceJournal(entry) ) return;
+  refreshJournalViews();
+  if ( !unlinksAfterDelete(userId) ) return;
+  const prefix = `${entry.uuid}.`;
+  await unlinkCards(uuid => uuid.startsWith(prefix));
 }
 
 export function registerJournalSync() {
@@ -97,7 +112,9 @@ export function registerJournalSync() {
   Hooks.on("updateJournalEntry", entry => isEvidenceJournal(entry) && refreshJournalViews());
   // Journals coming and going (or access to them changing) can change anyone's default journal.
   Hooks.on("createJournalEntry", entry => isEvidenceJournal(entry) && refreshJournalViews());
-  Hooks.on("deleteJournalEntry", entry => isEvidenceJournal(entry) && refreshJournalViews());
+  Hooks.on("deleteJournalEntry", onDeleteJournal);
   Hooks.on("updateUser", (user, changed) => user.isSelf && foundry.utils.hasProperty(changed, `flags.${MODULE_ID}`) && refreshJournalViews());
   Hooks.on("deleteScene", refreshSheets);
+  // Cards left linked to journals deleted before this cleanup existed (or while no GM was online).
+  Hooks.once("ready", () => game.users.activeGM?.isSelf && unlinkMissingPages());
 }

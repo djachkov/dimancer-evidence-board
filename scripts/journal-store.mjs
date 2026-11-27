@@ -356,6 +356,39 @@ export async function movePage(page, target) {
   return moved;
 }
 
+/**
+ * Unlink board cards from pages that are gone, so they become plain cards that can be filed again.
+ * `isGone(uuid)` says which page links to drop. A GM changes every board; others only cards they
+ * can edit.
+ * @returns {Promise<number>}  How many cards were unlinked
+ */
+export async function unlinkCards(isGone) {
+  let count = 0;
+  for ( const scene of game.scenes.filter(isBoard) ) {
+    const update = {};
+    for ( const c of Object.values(boardCards(scene)) ) {
+      const card = getCard(scene, c.id);
+      if ( !card?.page || !isGone(card.page) ) continue;
+      if ( !game.user.isGM && !canEditCard(scene, card) ) continue;
+      Object.assign(update, cardUpdate(card.id, { page: null }));
+      count++;
+    }
+    if ( foundry.utils.isEmpty(update) ) continue;
+    try {
+      await scene.update(update, { dimancerMirror: true });
+    } catch(err) {
+      console.warn(`${MODULE_ID} | unlink cards`, err);
+    }
+  }
+  return count;
+}
+
+/** Unlink cards whose page no longer exists anywhere (a GM sees every journal, so only a GM can tell). */
+export function unlinkMissingPages() {
+  if ( !game.user.isGM ) return Promise.resolve(0);
+  return unlinkCards(uuid => !fromUuidSync(uuid, { strict: false }));
+}
+
 /** The page a card shows, if any (and if this client has it). */
 export function pageOfCard(card) {
   if ( !card?.page ) return null;

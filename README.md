@@ -134,8 +134,7 @@ any scene, laid out as an open notebook. Double-clicking evidence on a board ope
 (They replaced the per-board evidence list, kept on the `evidence-list` git branch, and, on the
 `text-documents` branch, the separate evidence viewer.)
 - **As many journals as you like.** Anyone, GM or player, starts one with **New journal…** under the
-  journal button in a journal's bar (or the Journal sidebar's **New Evidence Journal** button while
-  they have none; once they do, it opens their default journal). The dialog
+  journal button in a journal's bar, or the Journal sidebar's **New Evidence Journal** button. The dialog
   asks for a name, the **style** (Classic, Quest board or Cyberpunk, shown as a sample card in each;
   it can't be changed later) and who can use it: **Shared with everyone** (every player can read it,
   add evidence and file into it) or **Only me** (only its creator and the GM). Players can't create
@@ -151,6 +150,8 @@ any scene, laid out as an open notebook. Double-clicking evidence on a board ope
   default journal. Evidence placed from a journal is already there and stays where it is.
   **Add to …** in a card's right-click menu files it now, keeping it on the board. Evidence that
   can't be filed (no journal you can add to) is deleted for good, so you're asked first.
+  **Deleting a journal** (or a piece of evidence in it) keeps its cards on the boards, unfiled
+  again, so they can go into another journal.
 - **Switch journals** with the journal button at the start of the bar: it lists the journals you can
   open (★ your default, a lock for private ones) and opens the one you pick in the same spot.
   **Move to …** in a card's menu moves evidence into another journal you can add to: its cards on

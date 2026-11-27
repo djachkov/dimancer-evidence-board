@@ -252,7 +252,6 @@
       "DefaultName": "Evidence",
       "SheetLabel": "Evidence Journal",
       "PageSheet": "Evidence page",
-      "Open": "Evidence Journal",
       "Create": "New Evidence Journal",
       "Missing": "You have no evidence journal yet. Create one from the Journal sidebar.",
       "NoAccess": "You don't have access to that evidence journal.",

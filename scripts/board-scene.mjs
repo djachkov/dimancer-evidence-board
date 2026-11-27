@@ -5,7 +5,7 @@ import { boardStyle, registerSurfaceHooks, surfaceChoices, surfaceOf } from "./s
 import { bindStyleFields, styleFieldsData } from "./style-fields.mjs";
 import { promptNewBoard, registerCreateDefaults, setPlaceholderColor } from "./create-board-dialog.mjs";
 import {
-  canEditJournal, defaultJournal, getEvidenceJournal, isEvidenceJournal, openEvidenceJournal, setDefaultJournal
+  canEditJournal, defaultJournal, isEvidenceJournal, promptNewJournal, setDefaultJournal
 } from "./journal-store.mjs";
 
 const OWNER = () => CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
@@ -159,8 +159,8 @@ function onRenderJournalDirectory(app, element) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "dimancer-board-journal-open";
-    button.innerHTML = `<i class="fa-solid fa-magnifying-glass" inert></i><span>${t(getEvidenceJournal() ? "Journal.Open" : "Journal.Create")}</span>`;
-    button.addEventListener("click", () => openEvidenceJournal());
+    button.innerHTML = `<i class="fa-solid fa-book-medical" inert></i><span>${t("Journal.Create")}</span>`;
+    button.addEventListener("click", () => promptNewJournal());
     actions.append(button);
   }
   const mine = defaultJournal()?.id;
